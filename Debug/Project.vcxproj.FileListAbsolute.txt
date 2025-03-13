@@ -1,2 +1,3 @@
 C:\Users\eduar\source\repos\CS271\Module_7\Exercise\Debug\Project.exe
 C:\Users\eduar\source\repos\CS271\Template\Debug\Project.exe
+C:\Users\eduar\source\repos\CS271\Project6\Debug\Project.exe

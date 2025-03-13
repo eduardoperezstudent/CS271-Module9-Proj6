@@ -1,16 +1,17 @@
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    02/20/25 13:07:42
-#Program Template     (template.asm			     Page 1 - 1
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 04:49:24
+*Temp List Reverser     (Proj6_pereze4.asm		     Page 1 - 1
 
 
-				TITLE Program Template     (template.asm)
+				TITLE Temp List Reverser     (Proj6_pereze4.asm)
 
-				; Author: 
-				; Last Modified:
-				; OSU email address: ONID_ID@oregonstate.edu
-				; Course number/section:   CS271 Section ???
-				; Project Number:                 Due Date:
-				; Description: This file is provided as a template from which you may work
-				;              when developing assembly projects in CS271.
+				; Author: Eduardo Perez
+				; Last Modified: March 16, 2025
+				; OSU email address: pereze4@oregonstate.edu
+				; Course number/section:   CS271 Section 400
+				; Project Number: 6               Due Date: March 16, 2025
+				; Description: This program loads a text file. The file contains Temperature values, each separated by a delimiter.
+				; Each Temperature values are extracted, converted to it's integer value format, and then stored in an array.
+				; The values are then displayed in reverse order as they are stored.
 
 				INCLUDE Irvine32.inc
 			      C ; Include file for Irvine32.lib             (Irvine32.inc)
@@ -31,42 +32,103 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    02/20/25 13:07:42
 			      C .LIST
 			      C 
 
-				; (insert macro definitions here)
+				mGetString MACRO str_Message, buffer, bufferSize, fileByteSize
+				    ; Display prompt message
+				    MOV EDX, OFFSET str_Message
+				    CALL WriteString  
+				    
+				    ; Get user input
+				    MOV EDX, OFFSET buffer
+				    MOV ECX, bufferSize
+				    CALL ReadString  
 
-				; (insert constant definitions here)
+				    ; Store number of bytes read
+				    MOV fileByteSize, EAX
+				ENDM
+
+				mDisplayString MACRO str_Message
+				    MOV EDX, OFFSET str_Message  ; Load string address into EDX
+				    CALL WriteString             ; Display the string
+				ENDM
+
+
+				mDisplayChar MACRO charValue
+				    PUSH EAX
+				    
+				    MOV AL, charValue
+				    CALL WriteChar
+
+				    POP EAX
+				ENDM
+
+ = 00000018			TEMPS_PER_DAY = 24
+ = 0000002C			DELIMITER   EQU ','
+
 
  00000000			.data
- 00000000 00025775		x    DWORD   153461
- 00000004 0025			y    WORD    37
- 00000006 005A			z    WORD    90
+
+ 00000000  00000064 [		str_FileName                    BYTE    100 DUP(0)                  ; Memory buffer file name
+	    00
+	   ]
+ 00000064 45 6E 74 65 72	str_MsgPromptFileName           BYTE    "Enter a string: ", 0
+	   20 61 20 73 74
+	   72 69 6E 67 3A
+	   20 00
+				                  
+ 00000075 00000063		int_BufferSize                  DWORD   99
+ 00000079 00000000		int_inputFileByteSize           DWORD   ?                           ; Stores the number of bytes read
+
+ 0000007D 40 00			str_TestChar                    BYTE    "@",0
+
 
  00000000			.code
  00000000			main PROC
- 00000000  FF 35 00000000 R	  PUSH  x
- 00000006  66| FF 35		  PUSH  y
-	   00000004 R
- 0000000D  66| FF 35		  PUSH  z
-	   00000006 R
- 00000014  E8 00000007		  CALL  someProcedure
-				  ; ...
-				  exit
- 00000019  6A 00	   *	    push   +000000000h
- 0000001B  E8 00000000 E   *	    call   ExitProcess
- 00000020			main ENDP
 
- 00000020			someProcedure PROC
- 00000020  55			  PUSH EBP
- 00000021  8B EC		  MOV  EBP, ESP
-				  ; ...
- 00000023  5D			  POP  EBP
- 00000024  C2 0008		  RET  8
- 00000027			someProcedure ENDP
+				mGetString str_MsgPromptFileName, str_FileName, int_BufferSize, int_inputFileByteSize
+ 00000000  BA 00000064 R     1	    MOV EDX, OFFSET str_MsgPromptFileName
+ 00000005  E8 00000000 E     1	    CALL WriteString  
+ 0000000A  BA 00000000 R     1	    MOV EDX, OFFSET str_FileName
+ 0000000F  8B 0D 00000075 R  1	    MOV ECX, int_BufferSize
+ 00000015  E8 00000000 E     1	    CALL ReadString  
+ 0000001A  A3 00000079 R     1	    MOV int_inputFileByteSize, EAX
+
+				mDisplayString str_FileName
+ 0000001F  BA 00000000 R     1	    MOV EDX, OFFSET str_FileName  ; Load string address into EDX
+ 00000024  E8 00000000 E     1	    CALL WriteString             ; Display the string
+ 00000029  E8 00000000 E	CALL CrLf
+ 0000002E  B0 3D		MOV AL, '='
+				mDisplayChar AL
+ 00000030  50		     1	    PUSH EAX
+ 00000031  8A C0	     1	    MOV AL, AL
+ 00000033  E8 00000000 E     1	    CALL WriteChar
+ 00000038  58		     1	    POP EAX
+
+
+
+
+
+
+					Invoke ExitProcess,0	; exit to operating system
+ 00000039  6A 00	   *	    push   +000000000h
+ 0000003B  E8 00000000 E   *	    call   ExitProcess
+ 00000040			main ENDP
+
+				; (insert additional procedures here)
 
 				END main
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    02/20/25 13:07:42
-#Program Template     (template.asm			     Symbols 2 - 1
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 04:49:24
+*Temp List Reverser     (Proj6_pereze4.asm		     Symbols 2 - 1
 
 
+
+
+Macros:
+
+                N a m e                 Type
+
+mDisplayChar . . . . . . . . . .	Proc
+mDisplayString . . . . . . . . .	Proc
+mGetString . . . . . . . . . . .	Proc
 
 
 Structures and Unions:
@@ -157,8 +219,8 @@ Segments and Groups:
 
 FLAT . . . . . . . . . . . . . .	GROUP
 STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
-_DATA  . . . . . . . . . . . . .	32 Bit	 00000008 Para	  Public  'DATA'	
-_TEXT  . . . . . . . . . . . . .	32 Bit	 00000027 Para	  Public  'CODE'	
+_DATA  . . . . . . . . . . . . .	32 Bit	 0000007F Para	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 00000040 Para	  Public  'CODE'	
 
 
 Procedures, parameters, and locals:
@@ -265,10 +327,9 @@ WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 00000020 Public STDCALL
+main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 00000040 Public STDCALL
 printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
-someProcedure  . . . . . . . . .	P Near	 00000020 _TEXT	Length= 00000007 Public STDCALL
 wsprintfA  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 
 
@@ -291,6 +352,7 @@ CREATE_ALWAYS  . . . . . . . . .	Number	 00000002h
 CREATE_NEW . . . . . . . . . . .	Number	 00000001h   
 CTRL_MASK  . . . . . . . . . . .	Number	 0000000Ch   
 CreateFile . . . . . . . . . . .	Text   	 CreateFileA
+DELIMITER  . . . . . . . . . . .	Number	 0000002Ch   
 DO_NOT_SHARE . . . . . . . . . .	Number	 00000000h   
 ENABLE_ECHO_INPUT  . . . . . . .	Number	 00000004h   
 ENABLE_LINE_INPUT  . . . . . . .	Number	 00000002h   
@@ -402,6 +464,7 @@ STD_INPUT_HANDLE . . . . . . . .	Number	 -0000000Ah
 STD_OUTPUT_HANDLE  . . . . . . .	Number	 -0000000Bh   
 SetConsoleTitle  . . . . . . . .	Text   	 SetConsoleTitleA
 TAB  . . . . . . . . . . . . . .	Number	 00000009h   
+TEMPS_PER_DAY  . . . . . . . . .	Number	 00000018h   
 TRUE . . . . . . . . . . . . . .	Number	 00000001h   
 TRUNCATE_EXISTING  . . . . . . .	Number	 00000005h   
 VK_11  . . . . . . . . . . . . .	Number	 000000BDh   
@@ -492,6 +555,8 @@ cyan . . . . . . . . . . . . . .	Number	 00000003h
 exit . . . . . . . . . . . . . .	Text   	 INVOKE ExitProcess,0
 gray . . . . . . . . . . . . . .	Number	 00000008h   
 green  . . . . . . . . . . . . .	Number	 00000002h   
+int_BufferSize . . . . . . . . .	DWord	 00000075 _DATA	
+int_inputFileByteSize  . . . . .	DWord	 00000079 _DATA	
 lightBlue  . . . . . . . . . . .	Number	 00000009h   
 lightCyan  . . . . . . . . . . .	Number	 0000000Bh   
 lightGray  . . . . . . . . . . .	Number	 00000007h   
@@ -500,12 +565,12 @@ lightMagenta . . . . . . . . . .	Number	 0000000Dh
 lightRed . . . . . . . . . . . .	Number	 0000000Ch   
 magenta  . . . . . . . . . . . .	Number	 00000005h   
 red  . . . . . . . . . . . . . .	Number	 00000004h   
+str_FileName . . . . . . . . . .	Byte	 00000000 _DATA	
+str_MsgPromptFileName  . . . . .	Byte	 00000064 _DATA	
+str_TestChar . . . . . . . . . .	Byte	 0000007D _DATA	
 white  . . . . . . . . . . . . .	Number	 0000000Fh   
 wsprintf . . . . . . . . . . . .	Text   	 wsprintfA
-x  . . . . . . . . . . . . . . .	DWord	 00000000 _DATA	
 yellow . . . . . . . . . . . . .	Number	 0000000Eh   
-y  . . . . . . . . . . . . . . .	Word	 00000004 _DATA	
-z  . . . . . . . . . . . . . . .	Word	 00000006 _DATA	
 
 	   0 Warnings
 	   0 Errors
