@@ -55,6 +55,8 @@ int_inputFileByteSize           DWORD   ?                           ; Stores the
 str_TestChar                    BYTE    "@",0
 
 
+
+
 .code
 main PROC
 
