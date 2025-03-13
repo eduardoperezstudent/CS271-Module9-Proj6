@@ -12,6 +12,9 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 INCLUDE Irvine32.inc
 
 mGetString MACRO str_Message, buffer, bufferSize, fileByteSize
+    PUSH    EAX
+    PUSH    ECX
+    PUSH    EDX
     ; Display prompt message
     MOV EDX, OFFSET str_Message
     CALL WriteString  
@@ -23,11 +26,19 @@ mGetString MACRO str_Message, buffer, bufferSize, fileByteSize
 
     ; Store number of bytes read
     MOV fileByteSize, EAX
+
+    POP     EDX
+    POP     ECX
+    POP     EAX
 ENDM
 
 mDisplayString MACRO str_Message
-    MOV EDX, OFFSET str_Message  ; Load string address into EDX
-    CALL WriteString             ; Display the string
+    PUSH    EDX
+
+    MOV     EDX, OFFSET str_Message  ; Load string address into EDX
+    CALL    WriteString             ; Display the string
+
+    POP     EDX
 ENDM
 
 
@@ -46,13 +57,15 @@ DELIMITER   EQU ','
 
 .data
 
-str_FileName                    BYTE    100 DUP(0)                  ; Memory buffer file name
-str_MsgPromptFileName           BYTE    "Enter a string: ", 0
-                  
-int_BufferSize                  DWORD   99
-int_inputFileByteSize           DWORD   ?                           ; Stores the number of bytes read
+str_MsgPromptFileName           BYTE    "Give the name of file containing the Temperature Readings: ", 0
 
-str_TestChar                    BYTE    "@",0
+
+str_NameOfFile                  BYTE    100 DUP(0)                  ; Memory buffer for file name
+str_TemperatureFile             BYTE    1000 DUP(255)               ; Memory buffer for file containing the temperature readings
+                  
+int_BufferSizeFileName          DWORD   99
+int_LenNameOfFile               DWORD   ?                           ; Stores the number of bytes read
+int_BufferSizeTemperatureFile   DWORD   999
 
 
 
@@ -60,12 +73,23 @@ str_TestChar                    BYTE    "@",0
 .code
 main PROC
 
-mGetString str_MsgPromptFileName, str_FileName, int_BufferSize, int_inputFileByteSize
+    ; Get File name
+    mGetString str_MsgPromptFileName, str_NameOfFile, int_BufferSizeFileName, int_LenNameOfFile
+    mDisplayString str_NameOfFile
 
-mDisplayString str_FileName
+    ; Open File
+    MOV     EDX, OFFSET str_NameOfFile
+    CALL    OpenInputFile
 
 
 
+    MOV     ECX, int_BufferSizeTemperatureFile
+    MOV     EDX, OFFSET str_TemperatureFile
+    CALL    ReadFromFile
+
+    MOV     EDX, OFFSET str_TemperatureFile
+    CALL    CrLf
+    CALL    WriteString
 
 
 

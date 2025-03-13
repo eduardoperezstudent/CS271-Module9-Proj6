@@ -1,4 +1,4 @@
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 04:49:24
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 06:17:08
 *Temp List Reverser     (Proj6_pereze4.asm		     Page 1 - 1
 
 
@@ -33,6 +33,9 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 04:49:24
 			      C 
 
 				mGetString MACRO str_Message, buffer, bufferSize, fileByteSize
+				    PUSH    EAX
+				    PUSH    ECX
+				    PUSH    EDX
 				    ; Display prompt message
 				    MOV EDX, OFFSET str_Message
 				    CALL WriteString  
@@ -44,11 +47,19 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 04:49:24
 
 				    ; Store number of bytes read
 				    MOV fileByteSize, EAX
+
+				    POP     EDX
+				    POP     ECX
+				    POP     EAX
 				ENDM
 
 				mDisplayString MACRO str_Message
-				    MOV EDX, OFFSET str_Message  ; Load string address into EDX
-				    CALL WriteString             ; Display the string
+				    PUSH    EDX
+
+				    MOV     EDX, OFFSET str_Message  ; Load string address into EDX
+				    CALL    WriteString             ; Display the string
+
+				    POP     EDX
 				ENDM
 
 
@@ -67,56 +78,83 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 04:49:24
 
  00000000			.data
 
- 00000000  00000064 [		str_FileName                    BYTE    100 DUP(0)                  ; Memory buffer file name
+ 00000000 47 69 76 65 20	str_MsgPromptFileName           BYTE    "Give the name of file containing the Temperature Readings: ", 0
+	   74 68 65 20 6E
+	   61 6D 65 20 6F
+	   66 20 66 69 6C
+	   65 20 63 6F 6E
+	   74 61 69 6E 69
+	   6E 67 20 74 68
+	   65 20 54 65 6D
+	   70 65 72 61 74
+	   75 72 65 20 52
+	   65 61 64 69 6E
+	   67 73 3A 20 00
+
+
+ 0000003C  00000064 [		str_NameOfFile                  BYTE    100 DUP(0)                  ; Memory buffer for file name
 	    00
 	   ]
- 00000064 45 6E 74 65 72	str_MsgPromptFileName           BYTE    "Enter a string: ", 0
-	   20 61 20 73 74
-	   72 69 6E 67 3A
-	   20 00
+ 000000A0  000003E8 [		str_TemperatureFile             BYTE    1000 DUP(255)               ; Memory buffer for file containing the temperature readings
+	    FF
+	   ]
 				                  
- 00000075 00000063		int_BufferSize                  DWORD   99
- 00000079 00000000		int_inputFileByteSize           DWORD   ?                           ; Stores the number of bytes read
+ 00000488 00000063		int_BufferSizeFileName          DWORD   99
+ 0000048C 00000000		int_LenNameOfFile               DWORD   ?                           ; Stores the number of bytes read
+ 00000490 000003E7		int_BufferSizeTemperatureFile   DWORD   999
 
- 0000007D 40 00			str_TestChar                    BYTE    "@",0
+
 
 
  00000000			.code
  00000000			main PROC
 
-				mGetString str_MsgPromptFileName, str_FileName, int_BufferSize, int_inputFileByteSize
- 00000000  BA 00000064 R     1	    MOV EDX, OFFSET str_MsgPromptFileName
- 00000005  E8 00000000 E     1	    CALL WriteString  
- 0000000A  BA 00000000 R     1	    MOV EDX, OFFSET str_FileName
- 0000000F  8B 0D 00000075 R  1	    MOV ECX, int_BufferSize
- 00000015  E8 00000000 E     1	    CALL ReadString  
- 0000001A  A3 00000079 R     1	    MOV int_inputFileByteSize, EAX
+				    ; Get File name
+				    mGetString str_MsgPromptFileName, str_NameOfFile, int_BufferSizeFileName, int_LenNameOfFile
+ 00000000  50		     1	    PUSH    EAX
+ 00000001  51		     1	    PUSH    ECX
+ 00000002  52		     1	    PUSH    EDX
+ 00000003  BA 00000000 R     1	    MOV EDX, OFFSET str_MsgPromptFileName
+ 00000008  E8 00000000 E     1	    CALL WriteString  
+ 0000000D  BA 0000003C R     1	    MOV EDX, OFFSET str_NameOfFile
+ 00000012  8B 0D 00000488 R  1	    MOV ECX, int_BufferSizeFileName
+ 00000018  E8 00000000 E     1	    CALL ReadString  
+ 0000001D  A3 0000048C R     1	    MOV int_LenNameOfFile, EAX
+ 00000022  5A		     1	    POP     EDX
+ 00000023  59		     1	    POP     ECX
+ 00000024  58		     1	    POP     EAX
+				    mDisplayString str_NameOfFile
+ 00000025  52		     1	    PUSH    EDX
+ 00000026  BA 0000003C R     1	    MOV     EDX, OFFSET str_NameOfFile  ; Load string address into EDX
+ 0000002B  E8 00000000 E     1	    CALL    WriteString             ; Display the string
+ 00000030  5A		     1	    POP     EDX
 
-				mDisplayString str_FileName
- 0000001F  BA 00000000 R     1	    MOV EDX, OFFSET str_FileName  ; Load string address into EDX
- 00000024  E8 00000000 E     1	    CALL WriteString             ; Display the string
- 00000029  E8 00000000 E	CALL CrLf
- 0000002E  B0 3D		MOV AL, '='
-				mDisplayChar AL
- 00000030  50		     1	    PUSH EAX
- 00000031  8A C0	     1	    MOV AL, AL
- 00000033  E8 00000000 E     1	    CALL WriteChar
- 00000038  58		     1	    POP EAX
+				    ; Open File
+ 00000031  BA 0000003C R	    MOV     EDX, OFFSET str_NameOfFile
+ 00000036  E8 00000000 E	    CALL    OpenInputFile
 
 
+
+ 0000003B  8B 0D 00000490 R	    MOV     ECX, int_BufferSizeTemperatureFile
+ 00000041  BA 000000A0 R	    MOV     EDX, OFFSET str_TemperatureFile
+ 00000046  E8 00000000 E	    CALL    ReadFromFile
+
+ 0000004B  BA 000000A0 R	    MOV     EDX, OFFSET str_TemperatureFile
+ 00000050  E8 00000000 E	    CALL    CrLf
+ 00000055  E8 00000000 E	    CALL    WriteString
 
 
 
 
 					Invoke ExitProcess,0	; exit to operating system
- 00000039  6A 00	   *	    push   +000000000h
- 0000003B  E8 00000000 E   *	    call   ExitProcess
- 00000040			main ENDP
+ 0000005A  6A 00	   *	    push   +000000000h
+ 0000005C  E8 00000000 E   *	    call   ExitProcess
+ 00000061			main ENDP
 
 				; (insert additional procedures here)
 
 				END main
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 04:49:24
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 06:17:08
 *Temp List Reverser     (Proj6_pereze4.asm		     Symbols 2 - 1
 
 
@@ -219,8 +257,8 @@ Segments and Groups:
 
 FLAT . . . . . . . . . . . . . .	GROUP
 STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
-_DATA  . . . . . . . . . . . . .	32 Bit	 0000007F Para	  Public  'DATA'	
-_TEXT  . . . . . . . . . . . . .	32 Bit	 00000040 Para	  Public  'CODE'	
+_DATA  . . . . . . . . . . . . .	32 Bit	 00000494 Para	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 00000061 Para	  Public  'CODE'	
 
 
 Procedures, parameters, and locals:
@@ -327,7 +365,7 @@ WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 00000040 Public STDCALL
+main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 00000061 Public STDCALL
 printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 wsprintfA  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
@@ -555,8 +593,9 @@ cyan . . . . . . . . . . . . . .	Number	 00000003h
 exit . . . . . . . . . . . . . .	Text   	 INVOKE ExitProcess,0
 gray . . . . . . . . . . . . . .	Number	 00000008h   
 green  . . . . . . . . . . . . .	Number	 00000002h   
-int_BufferSize . . . . . . . . .	DWord	 00000075 _DATA	
-int_inputFileByteSize  . . . . .	DWord	 00000079 _DATA	
+int_BufferSizeFileName . . . . .	DWord	 00000488 _DATA	
+int_BufferSizeTemperatureFile  .	DWord	 00000490 _DATA	
+int_LenNameOfFile  . . . . . . .	DWord	 0000048C _DATA	
 lightBlue  . . . . . . . . . . .	Number	 00000009h   
 lightCyan  . . . . . . . . . . .	Number	 0000000Bh   
 lightGray  . . . . . . . . . . .	Number	 00000007h   
@@ -565,9 +604,9 @@ lightMagenta . . . . . . . . . .	Number	 0000000Dh
 lightRed . . . . . . . . . . . .	Number	 0000000Ch   
 magenta  . . . . . . . . . . . .	Number	 00000005h   
 red  . . . . . . . . . . . . . .	Number	 00000004h   
-str_FileName . . . . . . . . . .	Byte	 00000000 _DATA	
-str_MsgPromptFileName  . . . . .	Byte	 00000064 _DATA	
-str_TestChar . . . . . . . . . .	Byte	 0000007D _DATA	
+str_MsgPromptFileName  . . . . .	Byte	 00000000 _DATA	
+str_NameOfFile . . . . . . . . .	Byte	 0000003C _DATA	
+str_TemperatureFile  . . . . . .	Byte	 000000A0 _DATA	
 white  . . . . . . . . . . . . .	Number	 0000000Fh   
 wsprintf . . . . . . . . . . . .	Text   	 wsprintfA
 yellow . . . . . . . . . . . . .	Number	 0000000Eh   
