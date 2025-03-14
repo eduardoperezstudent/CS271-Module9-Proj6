@@ -121,9 +121,17 @@ main PROC
     MOV     EDX, OFFSET file_TempReadings
     CALL    ReadFromFile
 
+
+
+
     ;=================================
     PUSH    OFFSET file_TempReadings
     CALL    ParseTempsFromString
+
+
+    
+
+
 
 
 
@@ -166,35 +174,21 @@ ParseTempsFromString PROC
     ;CALL    WriteString
 
 
-    ;==================================================================
-    ; Initialize Temp Matrix with value 1
-    MOV ECX, LENGTHOF arr_TempMatrix                                  ; Loop counter (300 elements)
-    LEA EDI, arr_TempMatrix                         ; Load address of the array into EDI
-    MOV EAX, 1                                      ; Value to initialize (1)
 
-    ; Loop to initialize Temp Matrix
-    _InitLoop:
-        MOV DWORD PTR [EDI], EAX                        ; Store 1 at current position
-        ADD EDI, 4                                      ; Move to the next DWORD (4 bytes)
-        LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
-
-
-        MOV ECX, LENGTHOF arr_TempMatrix  ; Reset loop counter
-    LEA ESI, arr_TempMatrix           ; Load base address of array
-
-    ; Print array
-    ;_PrintLoop:
-    ;    MOV EAX, DWORD PTR [ESI]          ; Load current array value
-    ;    CALL WriteDec                      ; Print number
-    ;    MOV AL, ' '
-    ;    CALL WriteChar
-
-    ;    ADD ESI, TYPE arr_TempMatrix       ; Move to next DWORD
-    ;    LOOP _PrintLoop                    ; Repeat until ECX = 0
+    ; Initialize temp matrix
+    LEA     EAX, arr_TempMatrix
+    PUSH    EAX
+    CALL    CrLf
+    CALL    WriteDec
+    MOV     EAX, LENGTHOF arr_TempMatrix
+    CALL    CrLf
+    CALL    WriteDec
+    PUSH    EAX
+    CALL    init_TempMatrix
 
 
     ;==================================================================
-    ; Get Matrix Size
+    ; Get File Size
     LEA     EAX, int_WidthMatrix
     PUSH    EAX
     LEA     EAX, int_LenMatrix
@@ -220,13 +214,16 @@ ParseTempsFromString PROC
     PUSH    offset_File_TempReadings
     LEA     EAX, int_CrntDlmterPos
     PUSH    EAX
-    MOV     EAX, 0
+    MOV     EAX, -1
     MOV     int_PrevDlmterPos, EAX
     PUSH    int_PrevDlmterPos
     CALL    get_NextDlmtrPos
     ;!!!!! After current line is done, in the loop, need to add 2 to int_PrevDlmterPos to compensate for CrLf
 
+   
+   
    ;==================================================================
+   ;CALL     extract_StrCrntTemp
     
 
     POP	    EDI
@@ -240,6 +237,181 @@ ParseTempsFromString PROC
 ParseTempsFromString ENDP
 
 
+
+; ==========================================================================================================================
+; Init Temp Matrix
+; receives: Address of the Temperature array
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
+
+init_TempMatrix PROC
+    PUSH    EBP
+    MOV     EBP, ESP
+
+
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ;-------------------------------------------------------------------
+    ; Parameters:
+    ;   [EBP+12] : OFFSET arr_TempMatrix
+    ;   [EBP+8] : length_Arr_TempMatrix
+
+
+    ; Debugging prints
+    ;MOV     EAX, [EBP+12]
+    ;CALL    CrLf
+    ;CALL     WriteDec
+    ;MOV     EAX, [EBP + 8]
+    ;CALL    CrLf
+    ;CALL    WriteDec
+    ;CALL    CrLf
+
+
+    ;==================================================================
+    ; Initialize Temp Matrix with value 1
+    MOV ECX, [EBP + 8]                                  ; Loop counter - LENGHTOF Array
+    MOV EDI, [EBP+12]                                   ; Load address of the array into EDI
+    MOV EAX, 1                                          ; Value to initialize (1)
+
+    ; Loop to initialize Temp Matrix
+    _InitLoop:
+        MOV DWORD PTR [EDI], EAX                         ; Store 1 at current position
+        ADD EDI, 4                                       ; Move to the next DWORD (4 bytes)
+        LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
+
+
+        MOV ECX, [EBP+8]                                ; Set loop counter
+        MOV ESI, [EBP+12]                               ; Load base address of array
+
+    ; Print array
+    _PrintLoop:
+        MOV EAX, DWORD PTR [ESI]                        ; Load current array value
+        CALL WriteDec                                   ; Print number
+        MOV AL, ' '
+        CALL WriteChar
+
+        ADD ESI, 4                                      ; Move to next DWORD
+        LOOP _PrintLoop                                 ; Repeat until ECX = 0
+
+ 
+    ;-------------------------------------------------------------------
+    ; Restore Registers and Return:
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    POP     EBP
+    RET     8
+init_TempMatrix ENDP
+
+
+; ==========================================================================================================================
+; Extracts temperature readings, in string delimited format, from memory. Then saves the readings in an arrary as integers
+; receives: Address of the Temperature array
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
+extract_StrCrntTemp PROC
+    ;-------------------------------------------------------------------
+    ; Local Variables:
+    ;   prev_DlmterPos      - stores the parameter int_Prev_DlmterPos (previous delimiter index)
+    ;   crnt_DlmterPos      - stores the parameter int_CrntDlmterPos (current delimiter index)
+    ;   file_TempReadings   - stores the parameter offset_File_TempReadings (file buffer base address)
+    ;   startPos            - computed starting index for extraction (prev_DlmterPos + 1)
+    ;   stringLength        - length of the substring to extract (crnt_DlmterPos - startPos)
+    LOCAL prev_DlmterPos:DWORD
+    LOCAL crnt_DlmterPos:DWORD
+    LOCAL file_TempReadingsLoc:DWORD
+    LOCAL startPos:DWORD
+    LOCAL stringLength:DWORD
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ;-------------------------------------------------------------------
+    ; Parameters
+    ; Parameters (from caller):
+    ;   [EBP+8]  : int_Prev_DlmterPos         - previous delimiter index.
+    ;   [EBP+12] : int_CrntDlmterPos          - current delimiter index.
+    ;   [EBP+16] : offset_str_CurntTemp       - destination address for extracted string.
+    ;   [EBP+20] : offset_File_TempReadings   - file buffer address.
+
+
+    ; Load parameters to local variables
+    MOV     EAX, [EBP+8]
+    MOV     prev_DlmterPos, EAX          ; Save previous delimiter position.
+    MOV     EAX, [EBP+12]
+    MOV     crnt_DlmterPos, EAX          ; Save current delimiter position.
+    MOV     EAX, [EBP+20]
+    MOV     file_TempReadingsLoc, EAX      ; Save file buffer base address.
+
+    ;-------------------------------------------------------------------
+    ; Compute the Starting Position for Extraction:
+    ; startPos = prev_DlmterPos + 1  (skip the delimiter)
+    MOV     EAX, prev_DlmterPos
+    ADD     EAX, 1                     ; Advance one position past previous delimiter.
+    MOV     startPos, EAX              ; Save computed starting index.
+
+    ;-------------------------------------------------------------------
+    ; Compute the Length of the Substring to Extract:
+    ; stringLength = crnt_DlmterPos - startPos
+    MOV     EAX, crnt_DlmterPos
+    SUB     EAX, startPos              ; Compute number of characters to copy.
+    MOV     stringLength, EAX          ; Save the computed string length.
+
+    ;-------------------------------------------------------------------
+    ; Set Up Source and Destination Pointers for Copy:
+    ; Source pointer = file_TempReadingsLoc + startPos
+    MOV     EAX, file_TempReadingsLoc
+    ADD     EAX, startPos              ; Compute effective source address.
+    MOV     ESI, EAX                   ; ESI now points to the substring in the file buffer.
+    ;
+    ; Destination pointer = offset_str_CurntTemp (passed as parameter at [EBP+16])
+    MOV     EAX, [EBP+16]
+    MOV     EDI, EAX                   ; EDI points to the destination buffer.
+
+    ;-------------------------------------------------------------------
+    ; Copy the Substring Using REP MOVSB:
+    ; Clear the Direction Flag (ensures auto-increment).
+    CLD
+    ; Set ECX = stringLength (number of bytes to copy)
+    MOV     ECX, stringLength
+    ; Use REP MOVSB to copy ECX bytes from DS:ESI to ES:EDI.
+    REP     MOVSB
+
+    ;-------------------------------------------------------------------
+    ; Append the NULL Terminator:
+    ; Place a 0 (null terminator) at the end of the copied string.
+    MOV     AL, 0                     ; Prepare NULL in AL.
+    STOSB                             ; Store AL at destination and increment EDI.
+
+    ;-------------------------------------------------------------------
+    ; Restore Registers and Return:
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    RET     20                        ; Clean up 20 bytes (4 parameters) from the stack.
+extract_StrCrntTemp ENDP
 
 
 
@@ -279,7 +451,7 @@ get_NextDlmtrPos PROC
     CALL    CrLf
     CALL    WriteString
     MOV     EAX, prevDlmterPos
-    CALL    WriteDec
+    CALL    WriteInt
 
     MOV     EAX, [EBP+16]
     MOV     offset_File_TempReadingsLoc, EAX  ; Save file buffer base address.
