@@ -11,6 +11,16 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 
 INCLUDE Irvine32.inc
 
+
+
+;=================================
+; Macros
+
+;=================================================================================
+; Description:
+; Parameters:
+; Local Variables:
+; Registers used:
 mGetString MACRO str_Message, buffer, bufferSize, fileByteSize
     PUSH    EAX
     PUSH    ECX
@@ -35,8 +45,8 @@ ENDM
 mDisplayString MACRO str_Message
     PUSH    EDX
 
-    MOV     EDX, OFFSET str_Message  ; Load string address into EDX
-    CALL    WriteString             ; Display the string
+    MOV     EDX, OFFSET str_Message
+    CALL    WriteString
 
     POP     EDX
 ENDM
@@ -51,6 +61,10 @@ mDisplayChar MACRO charValue
     POP EAX
 ENDM
 
+
+
+;=================================
+; Global Variables
 TEMPS_PER_DAY = 24
 DELIMITER   EQU ','
 
@@ -67,21 +81,23 @@ int_BufferSizeFileName          DWORD   99
 int_LenNameOfFile               DWORD   ?                           ; Stores the number of bytes read
 int_BufferSizeTemperatureFile   DWORD   999
 
+arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
 
 .code
 main PROC
 
+    ;=================================
     ; Get File name
     mGetString str_MsgPromptFileName, str_NameOfFile, int_BufferSizeFileName, int_LenNameOfFile
     mDisplayString str_NameOfFile
 
+
+    ;=================================
     ; Open File
     MOV     EDX, OFFSET str_NameOfFile
     CALL    OpenInputFile
-
-
 
     MOV     ECX, int_BufferSizeTemperatureFile
     MOV     EDX, OFFSET str_TemperatureFile
@@ -91,11 +107,55 @@ main PROC
     CALL    CrLf
     CALL    WriteString
 
+    ;=================================
+    PUSH    OFFSET arr_TempMatrix
+    CALL    ParseTempsFromString
 
+
+; ==========================================================================================================================
+; Extracts temperature readings, in string delimited format, from memory. Then saves the readings in an arrary as integers
+; receives: Address of the Temperature array
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
 
 
 	Invoke ExitProcess,0	; exit to operating system
 main ENDP
+
+
+ParseTempsFromString PROC
+    LOCAL   int_averageHighLoc:DWORD, str_curnt_temp[5]:BYTE
+
+
+    PUSH	EAX
+    PUSH	EBX
+    PUSH	ECX
+    PUSH	EDX
+    PUSH	ESI
+    PUSH	EDI
+
+
+    ; Stack Layout:
+    ; [EBP + 8] = OFFSET arr_TempMatrix
+    ; [EBP + 4] = return address
+    ; [EBP] = old ebp
+
+
+
+
+    POP	    EDI
+    POP 	ESI
+    POP	    EDX
+    POP	    ECX
+    POP 	EBX
+    POP	    EAX
+    RET     4
+
+ParseTempsFromString ENDP
+
 
 ; (insert additional procedures here)
 
