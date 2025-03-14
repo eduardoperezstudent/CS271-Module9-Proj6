@@ -1,4 +1,4 @@
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/14/25 05:17:06
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/14/25 06:09:21
 *Temp List Reverser     (Proj6_pereze4.asm		     Page 1 - 1
 
 
@@ -87,7 +87,7 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/14/25 05:17:06
 				;=================================
 				; Global Variables
  = 00000018			TEMPS_PER_DAY = 24
- = 0000002C			DELIMITER   EQU ','
+ = 0000003B			DELIMITER   EQU 3Bh
 
 
  00000000			.data
@@ -249,7 +249,20 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/14/25 05:17:06
  000000AD  8D 85 FFFFFCB8	    LEA     EAX, int_LenMatrix
  000000B3  50			    PUSH    EAX
  000000B4  FF B5 FFFFFCBC	    PUSH    offset_File_TempReadings
- 000000BA  E8 0000000A		    CALL    get_MatrixSize
+ 000000BA  E8 0000003E		    CALL    get_MatrixSize
+
+ 000000BF  E8 00000000 E	    CALL    CrLf
+ 000000C4  BA 00000494 R	    MOV     EDX, OFFSET str_MsgNumberofRows
+ 000000C9  E8 00000000 E	    CALL    WriteString
+ 000000CE  8B 85 FFFFFCB8	    MOV     EAX, int_LenMatrix
+ 000000D4  E8 00000000 E	    CALL    WriteDec
+
+ 000000D9  E8 00000000 E	    CALL    CrLf
+ 000000DE  BA 000004A9 R	    MOV     EDX, OFFSET str_MsgNumberofColumns
+ 000000E3  E8 00000000 E	    CALL    WriteString
+ 000000E8  8B 85 FFFFFCB4	    MOV     EAX, int_WidthMatrix
+ 000000EE  E8 00000000 E	    CALL    WriteDec
+
 
 
 				    ;MOV     EAX, int_LenMatrix
@@ -261,23 +274,23 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/14/25 05:17:06
 				    ;CALL    WriteDec
 				    
 
- 000000BF  5F			    POP	    EDI
- 000000C0  5E			    POP 	ESI
- 000000C1  5A			    POP	    EDX
- 000000C2  59			    POP	    ECX
- 000000C3  5B			    POP 	EBX
- 000000C4  58			    POP	    EAX
- 000000C5  C9		   *	    leave  
- 000000C6  C2 0004		    RET     4
+ 000000F3  5F			    POP	    EDI
+ 000000F4  5E			    POP 	ESI
+ 000000F5  5A			    POP	    EDX
+ 000000F6  59			    POP	    ECX
+ 000000F7  5B			    POP 	EBX
+ 000000F8  58			    POP	    EAX
+ 000000F9  C9		   *	    leave  
+ 000000FA  C2 0004		    RET     4
 
- 000000C9			ParseTempsFromString ENDP
-Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not referenced : str_CurntTemp
-Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not referenced : int_Len_Str_CrntTemp
-Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not referenced : int_Sign
-Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not referenced : int_RowIndex
-Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not referenced : int_ColIndex
-Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not referenced : int_CrntTemp
-Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not referenced : int_PrevDlmterPos
+ 000000FD			ParseTempsFromString ENDP
+Proj6_pereze4.asm(220) : warning A6004:procedure argument or local not referenced : str_CurntTemp
+Proj6_pereze4.asm(220) : warning A6004:procedure argument or local not referenced : int_Len_Str_CrntTemp
+Proj6_pereze4.asm(220) : warning A6004:procedure argument or local not referenced : int_Sign
+Proj6_pereze4.asm(220) : warning A6004:procedure argument or local not referenced : int_RowIndex
+Proj6_pereze4.asm(220) : warning A6004:procedure argument or local not referenced : int_ColIndex
+Proj6_pereze4.asm(220) : warning A6004:procedure argument or local not referenced : int_CrntTemp
+Proj6_pereze4.asm(220) : warning A6004:procedure argument or local not referenced : int_PrevDlmterPos
 
 
 
@@ -289,139 +302,134 @@ Proj6_pereze4.asm(207) : warning A6004:procedure argument or local not reference
 				; postconditions: values saved in memory
 				; registers changed: none
 				; ==========================================================================================================================
-
- 000000C9			get_MatrixSize PROC
+ 000000FD			get_MatrixSize PROC
 
 				    LOCAL int_NumRows:DWORD
 				    LOCAL int_NumCols:DWORD
 				    LOCAL offset_File_TempReadings:DWORD
 				    LOCAL rowHasData:BYTE
 
- 000000C9  55		   *	    push   ebp
- 000000CA  8B EC	   *	    mov    ebp, esp
- 000000CC  83 C4 F0	   *	    add    esp, 0FFFFFFF0h
- 000000CF  50			    PUSH    EAX
- 000000D0  53			    PUSH    EBX
- 000000D1  51			    PUSH    ECX
- 000000D2  52			    PUSH    EDX
- 000000D3  56			    PUSH    ESI
- 000000D4  57			    PUSH    EDI
+ 000000FD  55		   *	    push   ebp
+ 000000FE  8B EC	   *	    mov    ebp, esp
+ 00000100  83 C4 F0	   *	    add    esp, 0FFFFFFF0h
+ 00000103  50			    PUSH    EAX
+ 00000104  53			    PUSH    EBX
+ 00000105  51			    PUSH    ECX
+ 00000106  52			    PUSH    EDX
+ 00000107  56			    PUSH    ESI
+ 00000108  57			    PUSH    EDI
 
 				    ; Load file address into ESI
- 000000D5  8B 45 08		    MOV     EAX, [EBP + 8]
- 000000D8  89 45 F4		    MOV     offset_File_TempReadings, EAX
- 000000DB  8B 75 F4		    MOV     ESI, offset_File_TempReadings
+ 00000109  8B 45 08		    MOV     EAX, [EBP + 8]
+ 0000010C  89 45 F4		    MOV     offset_File_TempReadings, EAX
+ 0000010F  8B 75 F4		    MOV     ESI, offset_File_TempReadings
 
 				    ; Initialize counters and flag
- 000000DE  C7 45 FC		    MOV     int_NumRows, 0
+ 00000112  C7 45 FC		    MOV     int_NumRows, 0
 	   00000000
- 000000E5  C7 45 F8		    MOV     int_NumCols, 0        ; Column count is based on commas (+ 1 if non-empty)
+ 00000119  C7 45 F8		    MOV     int_NumCols, 0        ; Column count is based on delimiters (+ 1 if non-empty)
 	   00000000
- 000000EC  C6 45 F3 00		    MOV     rowHasData, 0
+ 00000120  C6 45 F3 00		    MOV     rowHasData, 0
 
 				    ; ----------------------------------------------------------------
 				    ; Process the first row: count columns and check for non-empty line
- 000000F0			_CountCols:
- 000000F0  AC			    LODSB                       ; Load next byte from [ESI] into AL and increment ESI
- 000000F1  8A D8		    MOV     BL, AL            ; Save the character in BL
+ 00000124			    _countCols:
+ 00000124  AC			        LODSB                               ; Load next byte from [ESI] into AL and increment ESI
+ 00000125  8A D8		        MOV     BL, AL                       ; Save the character in BL
 
- 000000F3  80 FB 00		    CMP     BL, 0             ; End-of-file?
- 000000F6  74 53		    JE      _Done
+ 00000127  80 FB 00		        CMP     BL, 0                       ; End-of-file?
+ 0000012A  74 49		        JE      _end_Get_MatrixSize
 
- 000000F8  80 FB 0D		    CMP     BL, 0Dh           ; Skip CR
- 000000FB  74 F3		    JE      _CountCols
+ 0000012C  80 FB 0D		        CMP     BL, 0Dh                     ; Skip CR (Carriage Return)
+ 0000012F  74 F3		        JE      _countCols
 
- 000000FD  80 FB 0A		    CMP     BL, 0Ah           ; LF indicates end-of-line
- 00000100  74 1A		    JE      _FinishFirstRow
+ 00000131  80 FB 0A		        CMP     BL, 0Ah                     ; LF indicates end-of-line
+ 00000134  74 10		        JE      _finishFirstRow
 
-				    ; Non CR/LF character: mark the row as non-empty
- 00000102  C6 45 F3 01		    MOV     rowHasData, 1
+				        ; Non CR/LF character: mark the row as non-empty
+ 00000136  C6 45 F3 01		        MOV     rowHasData, 1
 
- 00000106  80 FB 2C		    CMP     BL, ','           ; Check for a comma (column separator)
- 00000109  75 03		    JNE     _ContinueCols
- 0000010B  FF 45 F8		    INC     int_NumCols
+ 0000013A  80 FB 3B		        CMP     BL, DELIMITER                     ; Check for delimiter
+ 0000013D  75 03		        JNE     _continueCols
+ 0000013F  FF 45 F8		        INC     int_NumCols
 
- 0000010E			_ContinueCols:
-				    ; (Optional) Display the character (debug output)
- 0000010E  8A C3		    MOV     AL, BL
- 00000110  E8 00000000 E	    CALL    CrLf
- 00000115  E8 00000000 E	    CALL    WriteChar
+				    ; Jump here if encountered delimiter
+ 00000142			    _continueCols:
+ 00000142  8A C3		        MOV     AL, BL
+ 00000144  EB DE		        JMP     _countCols
 
- 0000011A  EB D4		    JMP     _CountCols
+				    ; At the end of the first row, count it if it contains data.
+ 00000146			    _finishFirstRow:
 
- 0000011C			_FinishFirstRow:
- 0000011C  80 7D F3 01		    CMP     rowHasData, 1
- 00000120  75 03		    JNE     _SkipFirstRow
- 00000122  FF 45 FC		    INC     int_NumRows
- 00000125			_SkipFirstRow:
- 00000125  C6 45 F3 00		    MOV     rowHasData, 0       ; Reset flag for next row
+ 00000146  80 7D F3 01		    CMP     rowHasData, 1
+ 0000014A  75 03		    JNE     _skipFirstRow
+ 0000014C  FF 45 FC		    INC     int_NumRows
 
-				    ; ----------------------------------------------------------------
+				    ; Assume file has at least one row
+ 0000014F			    _skipFirstRow:
+ 0000014F  C6 45 F3 00		        MOV     rowHasData, 0               ; Reset flag for next row
+
+
 				    ; Process subsequent rows
- 00000129			_CountRows:
- 00000129  AC			    LODSB                       ; Load next byte
- 0000012A  3C 00		    CMP     AL, 0             ; End-of-file?
- 0000012C  74 1D		    JE      _Done
- 0000012E  3C 0D		    CMP     AL, 0Dh           ; Skip CR
- 00000130  74 F7		    JE      _CountRows
- 00000132  3C 0A		    CMP     AL, 0Ah           ; LF indicates end-of-line
- 00000134  74 06		    JE      _EndOfRow
-				    ; Non CR/LF character: mark row as non-empty
- 00000136  C6 45 F3 01		    MOV     rowHasData, 1
- 0000013A  EB ED		    JMP     _CountRows
+ 00000153			    _countRows:
+ 00000153  AC			        LODSB                               ; Load next byte
+ 00000154  3C 00		        CMP     AL, 0                       ; End-of-file?
+ 00000156  74 1D		        JE      _end_Get_MatrixSize
+ 00000158  3C 0D		        CMP     AL, 0Dh                     ; Skip CR (Carriage Return)
+ 0000015A  74 F7		        JE      _countRows
+ 0000015C  3C 0A		        CMP     AL, 0Ah                     ; LF indicates end-of-line
+ 0000015E  74 06		        JE      _endOfRow
+				        ; Non CR/LF character: mark the row as non-empty
+ 00000160  C6 45 F3 01		        MOV     rowHasData, 1
+ 00000164  EB ED		        JMP     _countRows
 
- 0000013C			_EndOfRow:
- 0000013C  80 7D F3 01		    CMP     rowHasData, 1
- 00000140  75 03		    JNE     _ResetRow
- 00000142  FF 45 FC		    INC     int_NumRows
- 00000145			_ResetRow:
- 00000145  C6 45 F3 00		    MOV     rowHasData, 0       ; Reset flag for next row
- 00000149  EB DE		    JMP     _CountRows
+				    ; At the end of a row, count it if it contains data.
+ 00000166			    _endOfRow:
+ 00000166  80 7D F3 01		    CMP     rowHasData, 1
+ 0000016A  75 03		    JNE     _resetRow
+ 0000016C  FF 45 FC		    INC     int_NumRows
 
-				    ; ----------------------------------------------------------------
- 0000014B			_Done:
-				    ; If EOF is reached and there is data in the current row,
-				    ; count it as a row.
- 0000014B  80 7D F3 01		    CMP     rowHasData, 1
- 0000014F  74 2E		    JE      _AddFinalRow
+				    ; Reset flag for the next row
+ 0000016F			    _resetRow:
+ 0000016F  C6 45 F3 00		        MOV     rowHasData, 0       
+ 00000173  EB DE		        JMP     _countRows
 
- 00000151			_StoreCounts:
- 00000151  8B 45 FC		    MOV     EAX, int_NumRows
- 00000154  8B 7D 0C		    MOV     EDI, [EBP + 12]
- 00000157  89 07		    MOV     DWORD PTR [EDI], EAX
+				     
+				     ; Calculations done. Store matrix size info
+ 00000175			    _end_Get_MatrixSize:
+ 00000175  80 7D F3 01		    CMP     rowHasData, 1
+ 00000179  74 1A		    JE      _addFinalRow
 
- 00000159  E8 00000000 E	    CALL    CrLf
- 0000015E  E8 00000000 E	    CALL    WriteDec
+				    ; Store the row and column counts in the provided output addresses.
+ 0000017B			    _storeCounts:
 
- 00000163  8B 45 F8		    MOV     EAX, int_NumCols
- 00000166  8B 7D 10		    MOV     EDI, [EBP + 16]
- 00000169  89 07		    MOV     DWORD PTR [EDI], EAX
+ 0000017B  8B 45 FC		    MOV     EAX, int_NumRows
+ 0000017E  8B 7D 0C		    MOV     EDI, [EBP + 12]
+ 00000181  89 07		    MOV     DWORD PTR [EDI], EAX
 
- 0000016B  E8 00000000 E	    CALL    CrLf
- 00000170  E8 00000000 E	    CALL    WriteDec
+ 00000183  8B 45 F8		    MOV     EAX, int_NumCols
+ 00000186  8B 7D 10		    MOV     EDI, [EBP + 16]
+ 00000189  89 07		    MOV     DWORD PTR [EDI], EAX
 
-				    ; Restore registers and return
- 00000175  5F			    POP     EDI
- 00000176  5E			    POP     ESI
- 00000177  5A			    POP     EDX
- 00000178  59			    POP     ECX
- 00000179  5B			    POP     EBX
- 0000017A  58			    POP     EAX
- 0000017B  C9		   *	    leave  
- 0000017C  C2 000C		    RET     12
+ 0000018B  5F			    POP     EDI
+ 0000018C  5E			    POP     ESI
+ 0000018D  5A			    POP     EDX
+ 0000018E  59			    POP     ECX
+ 0000018F  5B			    POP     EBX
+ 00000190  58			    POP     EAX
+ 00000191  C9		   *	    leave  
+ 00000192  C2 000C		    RET     12
 
- 0000017F			_AddFinalRow:
- 0000017F  FF 45 FC		    INC     int_NumRows
- 00000182  EB CD		    JMP     _StoreCounts
+				    ; add final row to the count. 
+ 00000195			    _addFinalRow:
+ 00000195  FF 45 FC		        INC     int_NumRows
+ 00000198  EB E1		        JMP     _storeCounts
 
- 00000184			get_MatrixSize ENDP
-
-
-
+ 0000019A			get_MatrixSize ENDP
 
 
 				END main
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/14/25 05:17:06
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/14/25 06:09:21
 *Temp List Reverser     (Proj6_pereze4.asm		     Symbols 2 - 1
 
 
@@ -525,7 +533,7 @@ Segments and Groups:
 FLAT . . . . . . . . . . . . . .	GROUP
 STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
 _DATA  . . . . . . . . . . . . .	32 Bit	 000004C1 Para	  Public  'DATA'	
-_TEXT  . . . . . . . . . . . . .	32 Bit	 00000184 Para	  Public  'CODE'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 0000019A Para	  Public  'CODE'	
 
 
 Procedures, parameters, and locals:
@@ -579,7 +587,7 @@ MsgBox . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 OpenInputFile  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ParseDecimal32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ParseInteger32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-ParseTempsFromString . . . . . .	P Near	 0000005C _TEXT	Length= 0000006D Public STDCALL
+ParseTempsFromString . . . . . .	P Near	 0000005C _TEXT	Length= 000000A1 Public STDCALL
   arr_TempMatrix . . . . . . . .	DWord	 bp - 00000320
   str_CurntTemp  . . . . . . . .	Byte	 bp - 00000325
   int_Len_Str_CrntTemp . . . . .	DWord	 bp - 0000032C
@@ -645,21 +653,21 @@ WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-get_MatrixSize . . . . . . . . .	P Near	 000000C9 _TEXT	Length= 000000BB Public STDCALL
+get_MatrixSize . . . . . . . . .	P Near	 000000FD _TEXT	Length= 0000009D Public STDCALL
   int_NumRows  . . . . . . . . .	DWord	 bp - 00000004
   int_NumCols  . . . . . . . . .	DWord	 bp - 00000008
   offset_File_TempReadings . . .	DWord	 bp - 0000000C
   rowHasData . . . . . . . . . .	Byte	 bp - 0000000D
-  _CountCols . . . . . . . . . .	L Near	 000000F0 _TEXT	
-  _ContinueCols  . . . . . . . .	L Near	 0000010E _TEXT	
-  _FinishFirstRow  . . . . . . .	L Near	 0000011C _TEXT	
-  _SkipFirstRow  . . . . . . . .	L Near	 00000125 _TEXT	
-  _CountRows . . . . . . . . . .	L Near	 00000129 _TEXT	
-  _EndOfRow  . . . . . . . . . .	L Near	 0000013C _TEXT	
-  _ResetRow  . . . . . . . . . .	L Near	 00000145 _TEXT	
-  _Done  . . . . . . . . . . . .	L Near	 0000014B _TEXT	
-  _StoreCounts . . . . . . . . .	L Near	 00000151 _TEXT	
-  _AddFinalRow . . . . . . . . .	L Near	 0000017F _TEXT	
+  _countCols . . . . . . . . . .	L Near	 00000124 _TEXT	
+  _continueCols  . . . . . . . .	L Near	 00000142 _TEXT	
+  _finishFirstRow  . . . . . . .	L Near	 00000146 _TEXT	
+  _skipFirstRow  . . . . . . . .	L Near	 0000014F _TEXT	
+  _countRows . . . . . . . . . .	L Near	 00000153 _TEXT	
+  _endOfRow  . . . . . . . . . .	L Near	 00000166 _TEXT	
+  _resetRow  . . . . . . . . . .	L Near	 0000016F _TEXT	
+  _end_Get_MatrixSize  . . . . .	L Near	 00000175 _TEXT	
+  _storeCounts . . . . . . . . .	L Near	 0000017B _TEXT	
+  _addFinalRow . . . . . . . . .	L Near	 00000195 _TEXT	
 main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 0000005C Public STDCALL
 printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
@@ -685,7 +693,7 @@ CREATE_ALWAYS  . . . . . . . . .	Number	 00000002h
 CREATE_NEW . . . . . . . . . . .	Number	 00000001h   
 CTRL_MASK  . . . . . . . . . . .	Number	 0000000Ch   
 CreateFile . . . . . . . . . . .	Text   	 CreateFileA
-DELIMITER  . . . . . . . . . . .	Number	 0000002Ch   
+DELIMITER  . . . . . . . . . . .	Number	 0000003Bh   
 DO_NOT_SHARE . . . . . . . . . .	Number	 00000000h   
 ENABLE_ECHO_INPUT  . . . . . . .	Number	 00000004h   
 ENABLE_LINE_INPUT  . . . . . . .	Number	 00000002h   
