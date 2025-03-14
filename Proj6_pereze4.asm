@@ -66,7 +66,7 @@ ENDM
 ;=================================
 ; Global Variables
 TEMPS_PER_DAY = 24
-DELIMITER   EQU 3Bh
+DELIMITER   EQU ','
 
 
 .data
@@ -83,6 +83,9 @@ int_BufferSizeTemperatureFile   DWORD   999
 
 str_MsgNumberofRows             BYTE    "The number of rows: ", 0
 str_MsgNumberofColumns          BYTE    "The number of columns: ", 0
+str_MsgPrevDlmtrPos             BYTE    "The previous demimiter position: ", 0
+str_MsgCrntDlmtrPos             BYTE    "The current demimiter position: ", 0
+str_MsgLoadedFile               BYTE    "The Loaded file: ", 0
 
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
@@ -93,7 +96,7 @@ main PROC
     ;=================================
     ; Get File name
     mGetString str_MsgPromptFileName, str_NameOfFile, int_BufferSizeFileName, int_LenNameOfFile
-    mDisplayString str_NameOfFile
+
 
 
     ;=================================
@@ -126,7 +129,7 @@ main ENDP
 ; registers changed: none
 ; ==========================================================================================================================
 ParseTempsFromString PROC
-    LOCAL   arr_TempMatrix[200]:DWORD, str_CurntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
+    LOCAL   arr_TempMatrix[200]:DWORD, str_CurntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
 
     PUSH	EAX
     PUSH	EBX
@@ -145,9 +148,9 @@ ParseTempsFromString PROC
     MOV     EAX, [EBP + 8]
     MOV     offset_File_TempReadings, EAX
 
-    MOV     EDX, offset_File_TempReadings
-    CALL    CrLf
-    CALL    WriteString
+    ;MOV     EDX, offset_File_TempReadings
+    ;CALL    CrLf
+    ;CALL    WriteString
 
 
     ;==================================================================
@@ -198,15 +201,19 @@ ParseTempsFromString PROC
     MOV     EAX, int_WidthMatrix
     CALL    WriteDec
 
+    ;==================================================================
+    ; Get current delimiter position
+    
+    PUSH    offset_File_TempReadings
+    LEA     EAX, int_CrntDlmterPos
+    PUSH    EAX
+    MOV     EAX, 12
+    MOV     int_PrevDlmterPos, EAX
+    PUSH    int_PrevDlmterPos
+    CALL    get_NextDlmtrPos
+    ;!!!!! After current line is done, in the loop, need to add 2 to int_PrevDlmterPos to compensate for CrLf
 
-
-    ;MOV     EAX, int_LenMatrix
-    ;CALL    CrLf
-    ;CALL    WriteDec
-
-    ;MOV     EAX, int_WidthMatrix
-    ;CALL    CrLf
-    ;CALL    WriteDec
+   ;==================================================================
     
 
     POP	    EDI
@@ -218,6 +225,128 @@ ParseTempsFromString PROC
     RET     4
 
 ParseTempsFromString ENDP
+
+
+; ==========================================================================================================================
+; Searches for the next delimiter in the file buffer
+; receives: Address of the buffered file, offset of the matrix Length and Width placeholder
+; returns:
+; preconditions: passed address offsets
+; postconditions: values saved in memory
+; registers changed: none
+; ==========================================================================================================================
+get_NextDlmtrPos PROC
+    LOCAL crntDlmtrPos:DWORD
+    LOCAL prevDlmterPos:DWORD
+    LOCAL offset_File_TempReadingsLoc:DWORD
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ; Parameters:
+    ;   [EBP+8]  : int_PrevDlmterPos
+    ;              (DWORD) The index of the previous delimiter in the current row.
+    ;   [EBP+12] : offset_Int_CrntDlmtrPos
+    ;              (DWORD) The address in memory where the result (the current delimiter index) will be saved.
+    ;   [EBP+16] : offset_File_TempReadings
+    ;              (DWORD) The address of the file saved in memory buffer (Temperature readings).
+
+    ; Store passed parameters in local variables.
+    MOV     EAX, [EBP+8]  
+    MOV     prevDlmterPos, EAX                ; Save previous delimiter position.
+
+    MOV     EDX, OFFSET str_MsgPrevDlmtrPos
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, prevDlmterPos
+    CALL    WriteDec
+
+    MOV     EAX, [EBP+16]
+    MOV     offset_File_TempReadingsLoc, EAX  ; Save file buffer base address.
+
+    MOV     EDX, OFFSET str_MsgLoadedFile
+    CALL    CrLF
+    CALL    WriteString
+    MOV     EDX, offset_File_TempReadingsLoc
+    CALL    CrLF
+    CALL    WriteString
+
+    ; Compute starting address for search:
+    ; Start searching at (prevDlmterPos + 1) relative to the file buffer.
+    MOV     EAX, prevDlmterPos
+    ADD     EAX, 1                          ; Next search index.
+    MOV     EBX, offset_File_TempReadingsLoc; Load base address.
+    ADD     EBX, EAX                      ; EBX now points to the search start position.
+    MOV     ESI, EBX                      ; Set ESI to the starting search pointer.
+
+_searchLoop:
+    LODSB                                 ; Load byte at [ESI] into AL; ESI increments automatically.
+    CMP     AL, DELIMITER                 ; Compare byte with the delimiter
+    JE      _foundDelim
+    JMP     _searchLoop                   ; Continue scanning
+
+_foundDelim:
+
+    ; ESI now points one byte past the found delimiter.
+    MOV     EAX, ESI
+    DEC     EAX                         ; Adjust: EAX now points to the delimiter itself.
+    MOV     crntDlmtrPos, EAX           ; Store current delimiter absolute position.
+
+    ; Calculate the delimiter's index relative to the file buffer.
+    MOV     ECX, offset_File_TempReadingsLoc ; Base address.
+    SUB     crntDlmtrPos, ECX           ; crntDlmtrPos now holds the index.
+
+    ; Check for CRLF between previous delimiter and current delimiter.
+    ; Scan from (prevDlmterPos + 1) up to the found delimiter index.
+    MOV     EAX, prevDlmterPos
+    ADD     EAX, 1                      ; Starting index for scan.
+    MOV     EBX, crntDlmtrPos           ; EBX holds current delimiter index.
+    MOV     EDI, EAX                    ; EDI is our scanning index.
+_adjustLoop:
+    CMP     EDI, EBX
+    JGE     _doneAdjust               ; If scanning index >= current delimiter index, finish.
+    MOV     AL, BYTE PTR [offset_File_TempReadingsLoc + EDI]
+    CMP     AL, 0Dh
+    JE      _checkLF
+    INC     EDI
+    JMP     _adjustLoop
+
+_checkLF:
+    CMP     BYTE PTR [offset_File_TempReadingsLoc + EDI + 1], 0Ah
+    JE      _foundCRLF
+    INC     EDI
+    JMP     _adjustLoop
+
+_foundCRLF:
+    ADD     crntDlmtrPos, 2            ; Adjust current delimiter index by adding 2.
+    JMP     _doneAdjust
+
+_doneAdjust:
+    ; Save the result in the memory location pointed to by offset_Int_CrntDlmtrPos.
+    MOV     EAX, crntDlmtrPos
+    MOV     EDX, [EBP+12]
+    MOV     [EDX], EAX
+
+    ; Debug printouts:
+    MOV     EDX, OFFSET str_MsgCrntDlmtrPos
+    CALL    CrLf
+    CALL    WriteString
+    CALL    WriteDec
+
+_done:
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    RET     12
+get_NextDlmtrPos ENDP
+
 
 
 
@@ -243,26 +372,32 @@ get_MatrixSize PROC
     PUSH    ESI
     PUSH    EDI
 
+
+    ; Parameters
+    ; [EBP + 16] int_WidthMatrix
+    ; [EBP + 12] int_LenMatrix
+    ; [EBP + 8]  offset_File_TempReadings
+
     ; Load file address into ESI
     MOV     EAX, [EBP + 8]
     MOV     offset_File_TempReadings, EAX
-    MOV     ESI, offset_File_TempReadings
+    MOV     ESI, offset_File_TempReadings       ; Had to abandon use of local variable, use ESI instead to make use of LODSB
 
     ; Initialize counters and flag
     MOV     int_NumRows, 0
-    MOV     int_NumCols, 0        ; Column count is based on delimiters (+ 1 if non-empty)
+    MOV     int_NumCols, 0                      ; Column count is based on delimiters (+ 1 if non-empty)
     MOV     rowHasData, 0
 
     ; ----------------------------------------------------------------
     ; Process the first row: count columns and check for non-empty line
     _countCols:
-        LODSB                               ; Load next byte from [ESI] into AL and increment ESI
-        MOV     BL, AL                       ; Save the character in BL
+        LODSB                                   ; Load next byte from [ESI] into AL and increment ESI
+        MOV     BL, AL                          ; Save the character in BL
 
-        CMP     BL, 0                       ; End-of-file?
+        CMP     BL, 0                           ; End-of-file?
         JE      _end_Get_MatrixSize
 
-        CMP     BL, 0Dh                     ; Skip CR (Carriage Return)
+        CMP     BL, 0Dh                          ; Skip CR (Carriage Return)
         JE      _countCols
 
         CMP     BL, 0Ah                     ; LF indicates end-of-line
@@ -347,6 +482,9 @@ get_MatrixSize PROC
         JMP     _storeCounts
 
 get_MatrixSize ENDP
+
+
+
 
 
 END main
