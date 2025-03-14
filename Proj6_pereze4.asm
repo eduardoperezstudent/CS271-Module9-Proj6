@@ -8,6 +8,7 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 ; Description: This program loads a text file. The file contains Temperature values, each separated by a delimiter.
 ; Each Temperature values are extracted, converted to it's integer value format, and then stored in an array.
 ; The values are then displayed in reverse order as they are stored.
+; Implementation note 1: LODSB is used in detecting delimiter positions and presence of Cr Lf. 
 
 INCLUDE Irvine32.inc
 
@@ -42,6 +43,12 @@ mGetString MACRO str_Message, buffer, bufferSize, fileByteSize
     POP     EAX
 ENDM
 
+;=================================================================================
+; Description:
+; Parameters:
+; Local Variables:
+; Registers used:
+
 mDisplayString MACRO str_Message
     PUSH    EDX
 
@@ -51,6 +58,12 @@ mDisplayString MACRO str_Message
     POP     EDX
 ENDM
 
+
+;=================================================================================
+; Description:
+; Parameters:
+; Local Variables:
+; Registers used:
 
 mDisplayChar MACRO charValue
     PUSH EAX
@@ -207,7 +220,7 @@ ParseTempsFromString PROC
     PUSH    offset_File_TempReadings
     LEA     EAX, int_CrntDlmterPos
     PUSH    EAX
-    MOV     EAX, 12
+    MOV     EAX, 0
     MOV     int_PrevDlmterPos, EAX
     PUSH    int_PrevDlmterPos
     CALL    get_NextDlmtrPos
@@ -225,6 +238,9 @@ ParseTempsFromString PROC
     RET     4
 
 ParseTempsFromString ENDP
+
+
+
 
 
 ; ==========================================================================================================================
@@ -278,73 +294,76 @@ get_NextDlmtrPos PROC
     ; Compute starting address for search:
     ; Start searching at (prevDlmterPos + 1) relative to the file buffer.
     MOV     EAX, prevDlmterPos
-    ADD     EAX, 1                          ; Next search index.
-    MOV     EBX, offset_File_TempReadingsLoc; Load base address.
-    ADD     EBX, EAX                      ; EBX now points to the search start position.
-    MOV     ESI, EBX                      ; Set ESI to the starting search pointer.
+    ADD     EAX, 1                                      ; Next search index.
+    MOV     EBX, offset_File_TempReadingsLoc            ; Load base address.
+    ADD     EBX, EAX                                    ; EBX now points to the search start position.
+    MOV     ESI, EBX                                    ; Set ESI to the starting search pointer.
 
-_searchLoop:
-    LODSB                                 ; Load byte at [ESI] into AL; ESI increments automatically.
-    CMP     AL, DELIMITER                 ; Compare byte with the delimiter
-    JE      _foundDelim
-    JMP     _searchLoop                   ; Continue scanning
+    ; Search for next delimiter value in the file
+    _searchLoop2:
+        LODSB                                           ; Load byte at [ESI] into AL; ESI increments automatically.
+        CMP     AL, DELIMITER                           ; Compare byte with the delimiter
+        JE      _found_Dlmtr
+        JMP     _searchLoop2                            ; Continue scanning
 
-_foundDelim:
+    ; Jump here once the next delimiter is found
+    _found_Dlmtr:
+        ; ESI now points one byte past the found delimiter.
+        MOV     EAX, ESI
+        DEC     EAX                                     ; Adjust: EAX now points to the delimiter itself.
+        MOV     crntDlmtrPos, EAX                       ; Store current delimiter absolute position.
 
-    ; ESI now points one byte past the found delimiter.
-    MOV     EAX, ESI
-    DEC     EAX                         ; Adjust: EAX now points to the delimiter itself.
-    MOV     crntDlmtrPos, EAX           ; Store current delimiter absolute position.
+        ; Calculate the delimiter's index relative to the file buffer.
+        MOV     ECX, offset_File_TempReadingsLoc        ; Base address.
+        SUB     crntDlmtrPos, ECX                       ; crntDlmtrPos now holds the index.
 
-    ; Calculate the delimiter's index relative to the file buffer.
-    MOV     ECX, offset_File_TempReadingsLoc ; Base address.
-    SUB     crntDlmtrPos, ECX           ; crntDlmtrPos now holds the index.
 
-    ; Check for CRLF between previous delimiter and current delimiter.
-    ; Scan from (prevDlmterPos + 1) up to the found delimiter index.
-    MOV     EAX, prevDlmterPos
-    ADD     EAX, 1                      ; Starting index for scan.
-    MOV     EBX, crntDlmtrPos           ; EBX holds current delimiter index.
-    MOV     EDI, EAX                    ; EDI is our scanning index.
-_adjustLoop:
-    CMP     EDI, EBX
-    JGE     _doneAdjust               ; If scanning index >= current delimiter index, finish.
-    MOV     AL, BYTE PTR [offset_File_TempReadingsLoc + EDI]
-    CMP     AL, 0Dh
-    JE      _checkLF
-    INC     EDI
-    JMP     _adjustLoop
+        ; Check for CRLF between previous delimiter and current delimiter.
+        ; Scan from (prevDlmterPos + 1) up to the found delimiter index.
+        MOV     EAX, prevDlmterPos
+        ADD     EAX, 1                                  ; Starting index for scan.
+        MOV     EBX, crntDlmtrPos                       ; EBX holds current delimiter index.
+        MOV     EDI, EAX                                ; EDI is our scanning index.
 
-_checkLF:
-    CMP     BYTE PTR [offset_File_TempReadingsLoc + EDI + 1], 0Ah
-    JE      _foundCRLF
-    INC     EDI
-    JMP     _adjustLoop
+    _adjustLoop:
+        CMP     EDI, EBX
+        JGE     _doneAdjust                             ; If scanning index >= current delimiter index, finish.
+        MOV     AL, BYTE PTR [offset_File_TempReadingsLoc + EDI]
+        CMP     AL, 0Dh
+        JE      _checkLF
+        INC     EDI
+        JMP     _adjustLoop
 
-_foundCRLF:
-    ADD     crntDlmtrPos, 2            ; Adjust current delimiter index by adding 2.
-    JMP     _doneAdjust
+    _checkLF:
+        CMP     BYTE PTR [offset_File_TempReadingsLoc + EDI + 1], 0Ah
+        JE      _foundCRLF
+        INC     EDI
+        JMP     _adjustLoop
 
-_doneAdjust:
-    ; Save the result in the memory location pointed to by offset_Int_CrntDlmtrPos.
-    MOV     EAX, crntDlmtrPos
-    MOV     EDX, [EBP+12]
-    MOV     [EDX], EAX
+    _foundCRLF:
+        ADD     crntDlmtrPos, 2            ; Adjust current delimiter index by adding 2.
 
-    ; Debug printouts:
-    MOV     EDX, OFFSET str_MsgCrntDlmtrPos
-    CALL    CrLf
-    CALL    WriteString
-    CALL    WriteDec
 
-_done:
-    POP     EDI
-    POP     ESI
-    POP     EDX
-    POP     ECX
-    POP     EBX
-    POP     EAX
-    RET     12
+    _doneAdjust:
+        ; Save the result in the memory location pointed to by offset_Int_CrntDlmtrPos.
+        MOV     EAX, crntDlmtrPos
+        MOV     EDX, [EBP+12]
+        MOV     [EDX], EAX
+
+        ; Debug printouts:
+        MOV     EDX, OFFSET str_MsgCrntDlmtrPos
+        CALL    CrLf
+        CALL    WriteString
+        CALL    WriteDec
+
+
+        POP     EDI
+        POP     ESI
+        POP     EDX
+        POP     ECX
+        POP     EBX
+        POP     EAX
+        RET     12
 get_NextDlmtrPos ENDP
 
 
@@ -452,10 +471,17 @@ get_MatrixSize PROC
         JMP     _countRows
 
      
-     ; Calculations done. Store matrix size info
+    ; check if final row has data
     _end_Get_MatrixSize:
     CMP     rowHasData, 1
     JE      _addFinalRow
+    JMP    _storeCounts 
+
+
+    ; Jump here if final Row has data to count it
+    _addFinalRow:
+        INC     int_NumRows
+        JMP     _storeCounts
 
     ; Store the row and column counts in the provided output addresses.
     _storeCounts:
@@ -476,10 +502,7 @@ get_MatrixSize PROC
     POP     EAX
     RET     12
 
-    ; add final row to the count. 
-    _addFinalRow:
-        INC     int_NumRows
-        JMP     _storeCounts
+
 
 get_MatrixSize ENDP
 
