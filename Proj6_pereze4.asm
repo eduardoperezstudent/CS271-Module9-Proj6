@@ -143,28 +143,30 @@ ParseTempsFromString PROC
     MOV     EAX, [EBP + 8]
     MOV     offset_File_TempReadings, EAX
 
-    ; Initialize array with value 1
+    ; Initialize Temp Matrix with value 1
     MOV ECX, LENGTHOF arr_TempMatrix                                  ; Loop counter (300 elements)
     LEA EDI, arr_TempMatrix                         ; Load address of the array into EDI
     MOV EAX, 1                                      ; Value to initialize (1)
 
-_InitLoop:
-    MOV DWORD PTR [EDI], EAX                        ; Store 1 at current position
-    ADD EDI, 4                                      ; Move to the next DWORD (4 bytes)
-    LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
+    ; Loop to initialize Temp Matrix
+    _InitLoop:
+        MOV DWORD PTR [EDI], EAX                        ; Store 1 at current position
+        ADD EDI, 4                                      ; Move to the next DWORD (4 bytes)
+        LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
 
 
         MOV ECX, LENGTHOF arr_TempMatrix  ; Reset loop counter
     LEA ESI, arr_TempMatrix           ; Load base address of array
 
-_PrintLoop:
-    MOV EAX, DWORD PTR [ESI]          ; Load current array value
-    CALL WriteDec                      ; Print number
-    MOV AL, ' '
-    CALL WriteChar
+    ; Print array
+    ;_PrintLoop:
+    ;    MOV EAX, DWORD PTR [ESI]          ; Load current array value
+    ;    CALL WriteDec                      ; Print number
+    ;    MOV AL, ' '
+    ;    CALL WriteChar
 
-    ADD ESI, TYPE arr_TempMatrix       ; Move to next DWORD
-    LOOP _PrintLoop                    ; Repeat until ECX = 0
+    ;    ADD ESI, TYPE arr_TempMatrix       ; Move to next DWORD
+    ;    LOOP _PrintLoop                    ; Repeat until ECX = 0
     
 
 
