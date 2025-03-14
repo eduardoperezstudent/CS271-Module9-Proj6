@@ -81,6 +81,9 @@ int_BufferSizeFileName          DWORD   99
 int_LenNameOfFile               DWORD   ?                           ; Stores the number of bytes read
 int_BufferSizeTemperatureFile   DWORD   999
 
+str_MsgNumberofRows             BYTE    "The number of rows: ", 0
+str_MsgNumberofColumns          BYTE    "The number of columns: ", 0
+
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
@@ -216,7 +219,10 @@ ParseTempsFromString ENDP
 
 get_MatrixSize PROC
 
-    LOCAL int_NumRows:DWORD, int_NumCols:DWORD, offset_File_TempReadings:DWORD
+    LOCAL int_NumRows:DWORD
+    LOCAL int_NumCols:DWORD
+    LOCAL offset_File_TempReadings:DWORD
+    LOCAL rowHasData:BYTE
 
     PUSH    EAX
     PUSH    EBX
@@ -230,55 +236,78 @@ get_MatrixSize PROC
     MOV     offset_File_TempReadings, EAX
     MOV     ESI, offset_File_TempReadings
 
-    ; Initialize counters
+    ; Initialize counters and flag
     MOV     int_NumRows, 0
-    MOV     int_NumCols, 0    ; Column count will be (commas + 1)
+    MOV     int_NumCols, 0        ; Column count is based on commas (+ 1 if non-empty)
+    MOV     rowHasData, 0
 
     ; ----------------------------------------------------------------
-    ; Count columns in the first row
+    ; Process the first row: count columns and check for non-empty line
 _CountCols:
-    LODSB                   ; Load next byte from [ESI] into AL and increment ESI
-    MOV     BL, AL        ; Save the original byte in BL for comparison
+    LODSB                       ; Load next byte from [ESI] into AL and increment ESI
+    MOV     BL, AL            ; Save the character in BL
 
-    CMP     BL, 0         ; Check for end-of-file (null terminator)
+    CMP     BL, 0             ; End-of-file?
     JE      _Done
 
-    CMP     BL, 0Dh       ; Check for CR (Carriage Return)
-    JE      _CountCols    ; Skip CR by reading the next byte
+    CMP     BL, 0Dh           ; Skip CR
+    JE      _CountCols
 
-    CMP     BL, 0Ah       ; Check for LF (Line Feed)
-    JE      _NextRow      ; End of first row reached
+    CMP     BL, 0Ah           ; LF indicates end-of-line
+    JE      _FinishFirstRow
 
-    CMP     BL, ','       ; Check for a comma (column separator)
+    ; Non CR/LF character: mark the row as non-empty
+    MOV     rowHasData, 1
+
+    CMP     BL, ','           ; Check for a comma (column separator)
     JNE     _ContinueCols
-    INC     int_NumCols   ; Increment column count when comma is found
+    INC     int_NumCols
 
 _ContinueCols:
-    ; Optionally display the character (or debug output)
-    MOV     AL, BL        ; Restore AL with the original byte
+    ; (Optional) Display the character (debug output)
+    MOV     AL, BL
     CALL    CrLf
     CALL    WriteChar
 
-    JMP     _CountCols    ; Continue scanning the first row
+    JMP     _CountCols
+
+_FinishFirstRow:
+    CMP     rowHasData, 1
+    JNE     _SkipFirstRow
+    INC     int_NumRows
+_SkipFirstRow:
+    MOV     rowHasData, 0       ; Reset flag for next row
 
     ; ----------------------------------------------------------------
-    ; Count rows (after the first row)
-_NextRow:
-    INC     int_NumRows   ; New row detected
-
+    ; Process subsequent rows
 _CountRows:
-    LODSB                   ; Load next byte
-    CMP     AL, 0         ; End-of-file?
+    LODSB                       ; Load next byte
+    CMP     AL, 0             ; End-of-file?
     JE      _Done
-    CMP     AL, 0Dh       ; Skip CR if found
+    CMP     AL, 0Dh           ; Skip CR
     JE      _CountRows
-    CMP     AL, 0Ah       ; Check for LF to count additional rows
-    JE      _NextRow
+    CMP     AL, 0Ah           ; LF indicates end-of-line
+    JE      _EndOfRow
+    ; Non CR/LF character: mark row as non-empty
+    MOV     rowHasData, 1
+    JMP     _CountRows
+
+_EndOfRow:
+    CMP     rowHasData, 1
+    JNE     _ResetRow
+    INC     int_NumRows
+_ResetRow:
+    MOV     rowHasData, 0       ; Reset flag for next row
     JMP     _CountRows
 
     ; ----------------------------------------------------------------
-    ; Store row and column counts in output variables
 _Done:
+    ; If EOF is reached and there is data in the current row,
+    ; count it as a row.
+    CMP     rowHasData, 1
+    JE      _AddFinalRow
+
+_StoreCounts:
     MOV     EAX, int_NumRows
     MOV     EDI, [EBP + 12]
     MOV     DWORD PTR [EDI], EAX
@@ -300,9 +329,15 @@ _Done:
     POP     ECX
     POP     EBX
     POP     EAX
-    RET 12
+    RET     12
+
+_AddFinalRow:
+    INC     int_NumRows
+    JMP     _StoreCounts
 
 get_MatrixSize ENDP
+
+
 
 
 
