@@ -107,6 +107,13 @@ main PROC
     CALL    ParseTempsFromString
 
 
+
+
+	Invoke ExitProcess,0	; exit to operating system
+main ENDP
+
+
+
 ; ==========================================================================================================================
 ; Extracts temperature readings, in string delimited format, from memory. Then saves the readings in an arrary as integers
 ; receives: Address of the Temperature array
@@ -115,16 +122,8 @@ main PROC
 ; postconditions: values saved in array
 ; registers changed: none
 ; ==========================================================================================================================
-
-
-	Invoke ExitProcess,0	; exit to operating system
-main ENDP
-
-
 ParseTempsFromString PROC
-    LOCAL   arr_TempMatrix[200]:DWORD, str_CurntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, \
-            int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, offset_File_TempReadings:DWORD
-
+    LOCAL   arr_TempMatrix[200]:DWORD, str_CurntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
 
     PUSH	EAX
     PUSH	EBX
@@ -143,6 +142,12 @@ ParseTempsFromString PROC
     MOV     EAX, [EBP + 8]
     MOV     offset_File_TempReadings, EAX
 
+    MOV     EDX, offset_File_TempReadings
+    CALL    CrLf
+    CALL    WriteString
+
+
+    ;==================================================================
     ; Initialize Temp Matrix with value 1
     MOV ECX, LENGTHOF arr_TempMatrix                                  ; Loop counter (300 elements)
     LEA EDI, arr_TempMatrix                         ; Load address of the array into EDI
@@ -167,16 +172,26 @@ ParseTempsFromString PROC
 
     ;    ADD ESI, TYPE arr_TempMatrix       ; Move to next DWORD
     ;    LOOP _PrintLoop                    ; Repeat until ECX = 0
+
+
+    ;==================================================================
+    ; Get Matrix Size
+    LEA     EAX, int_WidthMatrix
+    PUSH    EAX
+    LEA     EAX, int_LenMatrix
+    PUSH    EAX
+    PUSH    offset_File_TempReadings
+    CALL    get_MatrixSize
+
+
+    ;MOV     EAX, int_LenMatrix
+    ;CALL    CrLf
+    ;CALL    WriteDec
+
+    ;MOV     EAX, int_WidthMatrix
+    ;CALL    CrLf
+    ;CALL    WriteDec
     
-
-
-
-    MOV     EDX, offset_File_TempReadings
-    CALL    CrLf
-    CALL    WriteString
-
-
-
 
     POP	    EDI
     POP 	ESI
@@ -189,6 +204,106 @@ ParseTempsFromString PROC
 ParseTempsFromString ENDP
 
 
-; (insert additional procedures here)
+
+; ==========================================================================================================================
+; Gathers the Length and Width og the matrix
+; receives: Address of the buffered file, offset of the matrix Length and Width placeholder
+; returns:
+; preconditions: passed address offsets
+; postconditions: values saved in memory
+; registers changed: none
+; ==========================================================================================================================
+
+get_MatrixSize PROC
+
+    LOCAL int_NumRows:DWORD, int_NumCols:DWORD, offset_File_TempReadings:DWORD
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ; Load file address into ESI
+    MOV     EAX, [EBP + 8]
+    MOV     offset_File_TempReadings, EAX
+    MOV     ESI, offset_File_TempReadings
+
+    ; Initialize counters
+    MOV     int_NumRows, 0
+    MOV     int_NumCols, 0    ; Column count will be (commas + 1)
+
+    ; ----------------------------------------------------------------
+    ; Count columns in the first row
+_CountCols:
+    LODSB                   ; Load next byte from [ESI] into AL and increment ESI
+    MOV     BL, AL        ; Save the original byte in BL for comparison
+
+    CMP     BL, 0         ; Check for end-of-file (null terminator)
+    JE      _Done
+
+    CMP     BL, 0Dh       ; Check for CR (Carriage Return)
+    JE      _CountCols    ; Skip CR by reading the next byte
+
+    CMP     BL, 0Ah       ; Check for LF (Line Feed)
+    JE      _NextRow      ; End of first row reached
+
+    CMP     BL, ','       ; Check for a comma (column separator)
+    JNE     _ContinueCols
+    INC     int_NumCols   ; Increment column count when comma is found
+
+_ContinueCols:
+    ; Optionally display the character (or debug output)
+    MOV     AL, BL        ; Restore AL with the original byte
+    CALL    CrLf
+    CALL    WriteChar
+
+    JMP     _CountCols    ; Continue scanning the first row
+
+    ; ----------------------------------------------------------------
+    ; Count rows (after the first row)
+_NextRow:
+    INC     int_NumRows   ; New row detected
+
+_CountRows:
+    LODSB                   ; Load next byte
+    CMP     AL, 0         ; End-of-file?
+    JE      _Done
+    CMP     AL, 0Dh       ; Skip CR if found
+    JE      _CountRows
+    CMP     AL, 0Ah       ; Check for LF to count additional rows
+    JE      _NextRow
+    JMP     _CountRows
+
+    ; ----------------------------------------------------------------
+    ; Store row and column counts in output variables
+_Done:
+    MOV     EAX, int_NumRows
+    MOV     EDI, [EBP + 12]
+    MOV     DWORD PTR [EDI], EAX
+
+    CALL    CrLf
+    CALL    WriteDec
+
+    MOV     EAX, int_NumCols
+    MOV     EDI, [EBP + 16]
+    MOV     DWORD PTR [EDI], EAX
+
+    CALL    CrLf
+    CALL    WriteDec
+
+    ; Restore registers and return
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    RET 12
+
+get_MatrixSize ENDP
+
+
 
 END main
