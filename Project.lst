@@ -1,4 +1,4 @@
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 17:39:19
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 18:42:24
 *Temp List Reverser     (Proj6_pereze4.asm		     Page 1 - 1
 
 
@@ -109,7 +109,7 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 17:39:19
  0000003C  00000064 [		str_NameOfFile                  BYTE    100 DUP(0)                  ; Memory buffer for file name
 	    00
 	   ]
- 000000A0  000003E8 [		str_TemperatureFile             BYTE    1000 DUP(255)               ; Memory buffer for file containing the temperature readings
+ 000000A0  000003E8 [		file_TempReadings               BYTE    1000 DUP(255)               ; Memory buffer for file containing the temperature readings
 	    FF
 	   ]
 				                  
@@ -117,9 +117,7 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 17:39:19
  0000048C 00000000		int_LenNameOfFile               DWORD   ?                           ; Stores the number of bytes read
  00000490 000003E7		int_BufferSizeTemperatureFile   DWORD   999
 
- 00000494  0000012C [		arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
-	    00000001
-	   ] FFFFFFFF
+				;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
 
@@ -154,16 +152,12 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 17:39:19
  00000036  E8 00000000 E	    CALL    OpenInputFile
 
  0000003B  8B 0D 00000490 R	    MOV     ECX, int_BufferSizeTemperatureFile
- 00000041  BA 000000A0 R	    MOV     EDX, OFFSET str_TemperatureFile
+ 00000041  BA 000000A0 R	    MOV     EDX, OFFSET file_TempReadings
  00000046  E8 00000000 E	    CALL    ReadFromFile
 
- 0000004B  BA 000000A0 R	    MOV     EDX, OFFSET str_TemperatureFile
- 00000050  E8 00000000 E	    CALL    CrLf
- 00000055  E8 00000000 E	    CALL    WriteString
-
 				    ;=================================
- 0000005A  68 00000494 R	    PUSH    OFFSET arr_TempMatrix
- 0000005F  E8 00000007		    CALL    ParseTempsFromString
+ 0000004B  68 000000A0 R	    PUSH    OFFSET file_TempReadings
+ 00000050  E8 00000007		    CALL    ParseTempsFromString
 
 
 				; ==========================================================================================================================
@@ -177,54 +171,92 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 17:39:19
 
 
 					Invoke ExitProcess,0	; exit to operating system
- 00000064  6A 00	   *	    push   +000000000h
- 00000066  E8 00000000 E   *	    call   ExitProcess
- 0000006B			main ENDP
+ 00000055  6A 00	   *	    push   +000000000h
+ 00000057  E8 00000000 E   *	    call   ExitProcess
+ 0000005C			main ENDP
 
 
- 0000006B			ParseTempsFromString PROC
-				    LOCAL   int_averageHighLoc:DWORD, str_curnt_temp[5]:BYTE
+ 0000005C			ParseTempsFromString PROC
+				    LOCAL   arr_TempMatrix[200]:DWORD, str_CurntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, \
+				            int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, offset_File_TempReadings:DWORD
 
 
- 0000006B  55		   *	    push   ebp
- 0000006C  8B EC	   *	    mov    ebp, esp
- 0000006E  83 C4 F4	   *	    add    esp, 0FFFFFFF4h
- 00000071  50			    PUSH	EAX
- 00000072  53			    PUSH	EBX
- 00000073  51			    PUSH	ECX
- 00000074  52			    PUSH	EDX
- 00000075  56			    PUSH	ESI
- 00000076  57			    PUSH	EDI
+ 0000005C  55		   *	    push   ebp
+ 0000005D  8B EC	   *	    mov    ebp, esp
+ 0000005F  81 C4 FFFFFCBC  *	    add    esp, 0FFFFFCBCh
+ 00000065  50			    PUSH	EAX
+ 00000066  53			    PUSH	EBX
+ 00000067  51			    PUSH	ECX
+ 00000068  52			    PUSH	EDX
+ 00000069  56			    PUSH	ESI
+ 0000006A  57			    PUSH	EDI
 
 
 				    ; Stack Layout:
-				    ; [EBP + 8] = OFFSET arr_TempMatrix
+				    ; [EBP + 8] = OFFSET file_TempReadings
 				    ; [EBP + 4] = return address
 				    ; [EBP] = old ebp
 
+				    ; move parameter to local variable
+ 0000006B  8B 45 08		    MOV     EAX, [EBP + 8]
+ 0000006E  89 85 FFFFFCBC	    MOV     offset_File_TempReadings, EAX
+
+				    ; Initialize array with value 1
+ 00000074  B9 000000C8		    MOV ECX, LENGTHOF arr_TempMatrix                                  ; Loop counter (300 elements)
+ 00000079  8D BD FFFFFCE0	    LEA EDI, arr_TempMatrix                         ; Load address of the array into EDI
+ 0000007F  B8 00000001		    MOV EAX, 1                                      ; Value to initialize (1)
+
+ 00000084			_InitLoop:
+ 00000084  89 07		    MOV DWORD PTR [EDI], EAX                        ; Store 1 at current position
+ 00000086  83 C7 04		    ADD EDI, 4                                      ; Move to the next DWORD (4 bytes)
+ 00000089  E2 F9		    LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
+
+
+ 0000008B  B9 000000C8		        MOV ECX, LENGTHOF arr_TempMatrix  ; Reset loop counter
+ 00000090  8D B5 FFFFFCE0	    LEA ESI, arr_TempMatrix           ; Load base address of array
+
+ 00000096			_PrintLoop:
+ 00000096  8B 06		    MOV EAX, DWORD PTR [ESI]          ; Load current array value
+ 00000098  E8 00000000 E	    CALL WriteDec                      ; Print number
+ 0000009D  B0 20		    MOV AL, ' '
+ 0000009F  E8 00000000 E	    CALL WriteChar
+
+ 000000A4  83 C6 04		    ADD ESI, TYPE arr_TempMatrix       ; Move to next DWORD
+ 000000A7  E2 ED		    LOOP _PrintLoop                    ; Repeat until ECX = 0
+				    
+
+
+
+ 000000A9  8B 95 FFFFFCBC	    MOV     EDX, offset_File_TempReadings
+ 000000AF  E8 00000000 E	    CALL    CrLf
+ 000000B4  E8 00000000 E	    CALL    WriteString
 
 
 
 
+ 000000B9  5F			    POP	    EDI
+ 000000BA  5E			    POP 	ESI
+ 000000BB  5A			    POP	    EDX
+ 000000BC  59			    POP	    ECX
+ 000000BD  5B			    POP 	EBX
+ 000000BE  58			    POP	    EAX
+ 000000BF  C9		   *	    leave  
+ 000000C0  C2 0004		    RET     4
 
- 00000077  5F			    POP	    EDI
- 00000078  5E			    POP 	ESI
- 00000079  5A			    POP	    EDX
- 0000007A  59			    POP	    ECX
- 0000007B  5B			    POP 	EBX
- 0000007C  58			    POP	    EAX
- 0000007D  C9		   *	    leave  
- 0000007E  C2 0004		    RET     4
-
- 00000081			ParseTempsFromString ENDP
-Proj6_pereze4.asm(159) : warning A6004:procedure argument or local not referenced : int_averageHighLoc
-Proj6_pereze4.asm(159) : warning A6004:procedure argument or local not referenced : str_curnt_temp
+ 000000C3			ParseTempsFromString ENDP
+Proj6_pereze4.asm(188) : warning A6004:procedure argument or local not referenced : str_CurntTemp
+Proj6_pereze4.asm(188) : warning A6004:procedure argument or local not referenced : int_Len_Str_CrntTemp
+Proj6_pereze4.asm(188) : warning A6004:procedure argument or local not referenced : int_Sign
+Proj6_pereze4.asm(188) : warning A6004:procedure argument or local not referenced : int_RowIndex
+Proj6_pereze4.asm(188) : warning A6004:procedure argument or local not referenced : int_ColIndex
+Proj6_pereze4.asm(188) : warning A6004:procedure argument or local not referenced : int_CrntTemp
+Proj6_pereze4.asm(188) : warning A6004:procedure argument or local not referenced : int_PrevDlmterPos
 
 
 				; (insert additional procedures here)
 
 				END main
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 17:39:19
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/13/25 18:42:24
 *Temp List Reverser     (Proj6_pereze4.asm		     Symbols 2 - 1
 
 
@@ -327,8 +359,8 @@ Segments and Groups:
 
 FLAT . . . . . . . . . . . . . .	GROUP
 STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
-_DATA  . . . . . . . . . . . . .	32 Bit	 00000948 Para	  Public  'DATA'	
-_TEXT  . . . . . . . . . . . . .	32 Bit	 00000081 Para	  Public  'CODE'	
+_DATA  . . . . . . . . . . . . .	32 Bit	 00000494 Para	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 000000C3 Para	  Public  'CODE'	
 
 
 Procedures, parameters, and locals:
@@ -382,9 +414,18 @@ MsgBox . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 OpenInputFile  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ParseDecimal32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ParseInteger32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-ParseTempsFromString . . . . . .	P Near	 0000006B _TEXT	Length= 00000016 Public STDCALL
-  int_averageHighLoc . . . . . .	DWord	 bp - 00000004
-  str_curnt_temp . . . . . . . .	Byte	 bp - 00000009
+ParseTempsFromString . . . . . .	P Near	 0000005C _TEXT	Length= 00000067 Public STDCALL
+  arr_TempMatrix . . . . . . . .	DWord	 bp - 00000320
+  str_CurntTemp  . . . . . . . .	Byte	 bp - 00000325
+  int_Len_Str_CrntTemp . . . . .	DWord	 bp - 0000032C
+  int_Sign . . . . . . . . . . .	DWord	 bp - 00000330
+  int_RowIndex . . . . . . . . .	DWord	 bp - 00000334
+  int_ColIndex . . . . . . . . .	DWord	 bp - 00000338
+  int_CrntTemp . . . . . . . . .	DWord	 bp - 0000033C
+  int_PrevDlmterPos  . . . . . .	DWord	 bp - 00000340
+  offset_File_TempReadings . . .	DWord	 bp - 00000344
+  _InitLoop  . . . . . . . . . .	L Near	 00000084 _TEXT	
+  _PrintLoop . . . . . . . . . .	L Near	 00000096 _TEXT	
 PeekConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 Random32 . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 RandomRange  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
@@ -438,7 +479,7 @@ WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 0000006B Public STDCALL
+main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 0000005C Public STDCALL
 printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 wsprintfA  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
@@ -659,12 +700,12 @@ VK_UP  . . . . . . . . . . . . .	Number	 00000026h
 WINDOW_BUFFER_SIZE_EVENT . . . .	Number	 00000004h   
 WriteConsoleOutputCharacter  . .	Text   	 WriteConsoleOutputCharacterA
 WriteConsole . . . . . . . . . .	Text   	 WriteConsoleA
-arr_TempMatrix . . . . . . . . .	DWord	 00000494 _DATA	
 black  . . . . . . . . . . . . .	Number	 00000000h   
 blue . . . . . . . . . . . . . .	Number	 00000001h   
 brown  . . . . . . . . . . . . .	Number	 00000006h   
 cyan . . . . . . . . . . . . . .	Number	 00000003h   
 exit . . . . . . . . . . . . . .	Text   	 INVOKE ExitProcess,0
+file_TempReadings  . . . . . . .	Byte	 000000A0 _DATA	
 gray . . . . . . . . . . . . . .	Number	 00000008h   
 green  . . . . . . . . . . . . .	Number	 00000002h   
 int_BufferSizeFileName . . . . .	DWord	 00000488 _DATA	
@@ -680,10 +721,9 @@ magenta  . . . . . . . . . . . .	Number	 00000005h
 red  . . . . . . . . . . . . . .	Number	 00000004h   
 str_MsgPromptFileName  . . . . .	Byte	 00000000 _DATA	
 str_NameOfFile . . . . . . . . .	Byte	 0000003C _DATA	
-str_TemperatureFile  . . . . . .	Byte	 000000A0 _DATA	
 white  . . . . . . . . . . . . .	Number	 0000000Fh   
 wsprintf . . . . . . . . . . . .	Text   	 wsprintfA
 yellow . . . . . . . . . . . . .	Number	 0000000Eh   
 
-	   2 Warnings
+	   7 Warnings
 	   0 Errors

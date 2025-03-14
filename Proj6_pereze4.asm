@@ -75,13 +75,13 @@ str_MsgPromptFileName           BYTE    "Give the name of file containing the Te
 
 
 str_NameOfFile                  BYTE    100 DUP(0)                  ; Memory buffer for file name
-str_TemperatureFile             BYTE    1000 DUP(255)               ; Memory buffer for file containing the temperature readings
+file_TempReadings               BYTE    1000 DUP(255)               ; Memory buffer for file containing the temperature readings
                   
 int_BufferSizeFileName          DWORD   99
 int_LenNameOfFile               DWORD   ?                           ; Stores the number of bytes read
 int_BufferSizeTemperatureFile   DWORD   999
 
-arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
+;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
 
@@ -100,15 +100,11 @@ main PROC
     CALL    OpenInputFile
 
     MOV     ECX, int_BufferSizeTemperatureFile
-    MOV     EDX, OFFSET str_TemperatureFile
+    MOV     EDX, OFFSET file_TempReadings
     CALL    ReadFromFile
 
-    MOV     EDX, OFFSET str_TemperatureFile
-    CALL    CrLf
-    CALL    WriteString
-
     ;=================================
-    PUSH    OFFSET arr_TempMatrix
+    PUSH    OFFSET file_TempReadings
     CALL    ParseTempsFromString
 
 
@@ -127,7 +123,8 @@ main ENDP
 
 
 ParseTempsFromString PROC
-    LOCAL   int_averageHighLoc:DWORD, str_curnt_temp[5]:BYTE
+    LOCAL   arr_TempMatrix[200]:DWORD, str_CurntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, \
+            int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, offset_File_TempReadings:DWORD
 
 
     PUSH	EAX
@@ -139,9 +136,43 @@ ParseTempsFromString PROC
 
 
     ; Stack Layout:
-    ; [EBP + 8] = OFFSET arr_TempMatrix
+    ; [EBP + 8] = OFFSET file_TempReadings
     ; [EBP + 4] = return address
     ; [EBP] = old ebp
+
+    ; move parameter to local variable
+    MOV     EAX, [EBP + 8]
+    MOV     offset_File_TempReadings, EAX
+
+    ; Initialize array with value 1
+    MOV ECX, LENGTHOF arr_TempMatrix                                  ; Loop counter (300 elements)
+    LEA EDI, arr_TempMatrix                         ; Load address of the array into EDI
+    MOV EAX, 1                                      ; Value to initialize (1)
+
+_InitLoop:
+    MOV DWORD PTR [EDI], EAX                        ; Store 1 at current position
+    ADD EDI, 4                                      ; Move to the next DWORD (4 bytes)
+    LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
+
+
+        MOV ECX, LENGTHOF arr_TempMatrix  ; Reset loop counter
+    LEA ESI, arr_TempMatrix           ; Load base address of array
+
+_PrintLoop:
+    MOV EAX, DWORD PTR [ESI]          ; Load current array value
+    CALL WriteDec                      ; Print number
+    MOV AL, ' '
+    CALL WriteChar
+
+    ADD ESI, TYPE arr_TempMatrix       ; Move to next DWORD
+    LOOP _PrintLoop                    ; Repeat until ECX = 0
+    
+
+
+
+    MOV     EDX, offset_File_TempReadings
+    CALL    CrLf
+    CALL    WriteString
 
 
 
