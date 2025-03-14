@@ -84,7 +84,6 @@ int_BufferSizeTemperatureFile   DWORD   999
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
-
 .code
 main PROC
 
