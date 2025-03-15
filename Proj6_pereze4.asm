@@ -403,20 +403,6 @@ ParseTempsFromString PROC
             LOOP    _PrintLoop                     ; Repeat until ECX = 0
 
 
-            CALL CrLf
-            MOV EDX, OFFSET str_MsgRowIndex
-            CALL WriteString
-            MOV EAX, int_RowIndex
-            CALL WriteDec
-
-            CALL CrLf
-            MOV EDX, OFFSET str_MsgColIndex
-            CALL WriteString
-            MOV EAX, int_ColIndex
-            CALL WriteDec
-            CALL    CrLf
-            MOV EAX, int_WidthMatrix
-            CALL WriteDec
 
             MOV     EAX, int_ColIndex
             INC     EAX
@@ -439,12 +425,6 @@ ParseTempsFromString PROC
             MOV     int_PrevDlmterPos, EAX
             
         ; Check if Outer Loop is done  
-        
-        CALL CrLf
-        MOV EDX, OFFSET str_MsgRowIndex
-        CALL WriteString
-        MOV EAX, int_RowIndex
-        CALL WriteDec
 
         MOV     EAX, int_RowIndex
         INC     EAX
@@ -461,6 +441,8 @@ ParseTempsFromString PROC
 
     ; ============================================
     ; Print All Elements of arr_TempMatrix
+    CALL    CrLf
+    CALL    CrLf
 
     MOV     ESI, [EBP + 12]                                     ; Move To ESI: OFFSET arr_TempMatrix
     MOV     ECX, 250 ; Set loop counter (total elements)
@@ -725,34 +707,49 @@ ConvertStringToInteger PROC
     MOV     offset_str_CrntTempLoc, EAX
 
     ;------------------------------------------------------------
-    ; GET STRING LENGTH USING IRVINE STR_LENGTH:
-    MOV     EAX, offset_str_CrntTempLoc    ; Load pointer into EAX.
-    CALL    Str_Length                      ; Returns length in EAX.
-    MOV     len_str_CrntTemp, EAX
+
+    MOV     EDX, [EBP + 8]                  ; Load pointer into EDX
+        MOV     ESI, EDX         ; Copy pointer to ESI.
+        XOR     ECX, ECX         ; Clear ECX (counter = 0).
+
+    L_strlen:
+        CMP     BYTE PTR [ESI], 0 ; Check if the current byte is 0 (null terminator).
+        JE      L_done_strlen    ; If yes, jump to done.
+        INC     ECX              ; Otherwise, increment counter.
+        INC     ESI              ; Move pointer to the next character.
+        JMP     L_strlen         ; Loop again.
+
+    L_done_strlen:
+        MOV     len_str_CrntTemp, ECX
+        MOV     EAX, ECX         ; EAX now holds the string length.
+        ; Optionally: display the length.
+        CALL    WriteDec
+        CALL    CrLf
+
 
     ;------------------------------------------------------------
     ; DEBUG PRINT: Print pointer value.
-    ;MOV     EDX, OFFSET STR_MSGPOINTER    ; "POINTER VALUE: "
-    ;CALL    CrLf
-    ;CALL    WriteString
-    ;MOV     EAX, offset_str_CrntTempLoc
-    ;CALL    WriteDec
-    ;CALL    CrLf
+    MOV     EDX, OFFSET STR_MSGPOINTER          ; "POINTER VALUE: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, offset_str_CrntTempLoc
+    CALL    WriteDec
+    CALL    CrLf
 
     ; DEBUG PRINT: Print passed string.
-    ;MOV     EDX, OFFSET STR_MSGPASSEDSTRING   ; "PASSED STRING: "
-    ;CALL    CrLf
-    ;CALL    WriteString
-    ;MOV     EDX, offset_str_CrntTempLoc
-    ;CALL    WriteString
-    ;CALL    CrLf
+    MOV     EDX, OFFSET STR_MSGPASSEDSTRING     ; "PASSED STRING: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EDX, offset_str_CrntTempLoc
+    CALL    WriteString
+    CALL    CrLf
 
     ; DEBUG PRINT: Print string length.
-    ;MOV     EDX, OFFSET STR_MSGLENGTH   ; "LENGTH: "
-    ;CALL    WriteString
-    ;MOV     EAX, len_str_CrntTemp
-    ;CALL    WriteDec
-    ;CALL    CrLf
+    MOV     EDX, OFFSET STR_MSGLENGTH           ; "LENGTH: "
+    CALL    WriteString
+    MOV     EAX, len_str_CrntTemp
+    CALL    WriteDec
+    CALL    CrLf
 
     ;------------------------------------------------------------
     ; INITIALIZE THE RESULT INTEGER.
