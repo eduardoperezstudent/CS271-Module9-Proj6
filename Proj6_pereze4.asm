@@ -8,7 +8,8 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 ; Description: This program loads a text file. The file contains Temperature values, each separated by a delimiter.
 ; Each Temperature values are extracted, converted to it's integer value format, and then stored in an array.
 ; The values are then displayed in reverse order as they are stored.
-; Implementation note 1: LODSB is used in detecting delimiter positions and presence of Cr Lf. 
+; Implementation note 1:    LODSB is used in detecting delimiter positions and presence of Cr Lf. 
+;                           MOVSB is utilized in extracting current Temp reading iteration from the file
 
 INCLUDE Irvine32.inc
 
@@ -98,6 +99,7 @@ str_MsgNumberofColumns          BYTE    "The number of columns: ", 0
 str_MsgPrevDlmtrPos             BYTE    "The previous delimiter position: ", 0
 str_MsgCrntDlmtrPos             BYTE    "The current delimiter position: ", 0
 str_MsgLoadedFile               BYTE    "The Loaded file: ", 0
+str_MsgCurrentTempIteration     BYTE    "The extracted current Temperature reading: ", 0
 
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
@@ -216,11 +218,16 @@ ParseTempsFromString PROC
    PUSH     EAX
    LEA      EAX, str_CurntTemp
    PUSH     EAX
-   MOV      EAX, 6                  ; test value of 'previous delimiter position'
+   MOV      EAX, int_PrevDlmterPos
    PUSH     EAX
-   MOV      EAX, 8                ; test value of 'current delimiter position'
+   MOV      EAX, int_CrntDlmterPos
    PUSH     EAX
    CALL     extract_StrCrntTemp
+   MOV      EDX, OFFSET str_MsgCurrentTempIteration
+   CALL     CrLf
+   CALL     WriteString
+   LEA      EDX, str_CurntTemp
+   CALL     WriteString
     
 
     POP	    EDI
@@ -281,7 +288,7 @@ extract_StrCrntTemp PROC
     MOV     file_TempReadingsLoc, EAX   ; Save file buffer base address.
 
 
-
+    ; Debugging Messages
     MOV     EDX, OFFSET str_MsgLoadedFile
     CALL    CrLf
     CALL    CrLf
@@ -337,8 +344,8 @@ extract_StrCrntTemp PROC
 
     ;-------------------------------------------------------------------
     ; Check for non-positive string length (i.e. negative or zero length).
-    CMP     stringLength, 0
-    JLE     SkipCopy
+    ; CMP     stringLength, 0
+    ; JLE     SkipCopy
 
     ;-------------------------------------------------------------------
     ; Set Up Source and Destination Pointers for Copy:
@@ -359,17 +366,17 @@ extract_StrCrntTemp PROC
     MOV     ECX, stringLength
     REP     MOVSB                    ; Copy ECX bytes from DS:ESI to ES:EDI.
 
-SkipCopy:
-    ;-------------------------------------------------------------------
-    ; Append the NULL Terminator:
-    MOV     AL, 0                     ; Prepare NULL in AL.
-    STOSB                             ; Store AL at destination and increment EDI.
+    ;SkipCopy:
+        ;-------------------------------------------------------------------
+        ; Append the NULL Terminator:
+        MOV     AL, 0                     ; Prepare NULL in AL.
+        STOSB                             ; Store AL at destination and increment EDI.
 
-    MOV     EDX, [EBP+16]
-    CALL    CrLF
-    CALL    CrLf
-    CALL    WriteString
-
+        ; Debugging messages
+        ;MOV     EDX, [EBP+16]
+        ;CALL    CrLF
+        ;CALL    CrLf
+        ;CALL    WriteString
 
     ;-------------------------------------------------------------------
     ; Restore Registers and Return:
@@ -417,21 +424,24 @@ get_NextDlmtrPos PROC
     MOV     EAX, [EBP+8]  
     MOV     prevDlmterPos, EAX                ; Save previous delimiter position.
 
-    MOV     EDX, OFFSET str_MsgPrevDlmtrPos
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, prevDlmterPos
-    CALL    WriteInt
+    ; Debugging messages
+    ;MOV     EDX, OFFSET str_MsgPrevDlmtrPos
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EAX, prevDlmterPos
+    ;CALL    WriteInt
 
     MOV     EAX, [EBP+16]
     MOV     offset_File_TempReadingsLoc, EAX  ; Save file buffer base address.
 
-    MOV     EDX, OFFSET str_MsgLoadedFile
-    CALL    CrLF
-    CALL    WriteString
-    MOV     EDX, offset_File_TempReadingsLoc
-    CALL    CrLF
-    CALL    WriteString
+
+    ; Debugging messages
+    ;MOV     EDX, OFFSET str_MsgLoadedFile
+    ;CALL    CrLF
+    ;CALL    WriteString
+    ;MOV     EDX, offset_File_TempReadingsLoc
+    ;CALL    CrLF
+    ;CALL    WriteString
 
     ; Compute starting address for search:
     ; Start searching at (prevDlmterPos + 1) relative to the file buffer.
@@ -493,10 +503,10 @@ get_NextDlmtrPos PROC
         MOV     [EDX], EAX
 
         ; Debug printouts:
-        MOV     EDX, OFFSET str_MsgCrntDlmtrPos
-        CALL    CrLf
-        CALL    WriteString
-        CALL    WriteDec
+        ;MOV     EDX, OFFSET str_MsgCrntDlmtrPos
+        ;CALL    CrLf
+        ;CALL    WriteString
+        ;CALL    WriteDec
 
 
         POP     EDI
