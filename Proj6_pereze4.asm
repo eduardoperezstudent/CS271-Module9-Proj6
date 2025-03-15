@@ -6,10 +6,12 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 ; Course number/section:   CS271 Section 400
 ; Project Number: 6               Due Date: March 16, 2025
 ; Description: This program loads a text file. The file contains Temperature values, each separated by a delimiter.
-; Each Temperature values are extracted, converted to it's integer value format, and then stored in an array.
+; Each Temperature values are extracted ONE AT A TIME; converted to it's integer value format, and then stored in an array.
 ; The values are then displayed in reverse order as they are stored.
 ; Implementation note 1:    LODSB is used in detecting delimiter positions and presence of Cr Lf. 
-;                           MOVSB is utilized in extracting current Temp reading iteration from the file
+;                           MOVSB is utilized in extracting current Temp reading iteration from the file.
+;                           LODSB is utlized to convert a Temp reading from str to int format
+; Implementation note 2:    Can accept Temp readings with prefix '+' or '-', and/or a leading zero
 
 INCLUDE Irvine32.inc
 
@@ -325,43 +327,43 @@ ConvertStringToInteger PROC
     PUSH    EDI
 
     ;------------------------------------------------------------
-    ; PARAMETER HANDLING:
-    ; [EBP+8]  : offset_Str_CurntTemp - pointer to the ASCII string (e.g. "123",0)
+    ; PARAMETERS:
     ; [EBP+12] : offset_Int_CurntTemp  - pointer where the converted integer will be stored.
+    ; [EBP+8]  : offset_Str_CurntTemp - pointer to the ASCII string, null Terminated
     ;
     ; Store the string pointer in a local variable.
-    MOV     EAX, [EBP+8]
+    MOV     EAX, [EBP + 8]
     MOV     offset_Str_CurntTempLoc, EAX
 
     ;------------------------------------------------------------
     ; GET STRING LENGTH USING IRVINE STR_LENGTH:
-    MOV     EAX, offset_Str_CurntTempLoc  ; Load pointer into EAX.
-    CALL    Str_Length                   ; Returns length in EAX.
+    MOV     EAX, offset_Str_CurntTempLoc    ; Load pointer into EAX.
+    CALL    Str_Length                      ; Returns length in EAX.
     MOV     len_Str_CurntTemp, EAX
 
     ;------------------------------------------------------------
     ; DEBUG PRINT: Print pointer value.
-    MOV     EDX, OFFSET STR_MSGPOINTER    ; "POINTER VALUE: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, offset_Str_CurntTempLoc
-    CALL    WriteDec
-    CALL    CrLf
+    ;MOV     EDX, OFFSET STR_MSGPOINTER    ; "POINTER VALUE: "
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EAX, offset_Str_CurntTempLoc
+    ;CALL    WriteDec
+    ;CALL    CrLf
 
     ; DEBUG PRINT: Print passed string.
-    MOV     EDX, OFFSET STR_MSGPASSEDSTRING   ; "PASSED STRING: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EDX, offset_Str_CurntTempLoc
-    CALL    WriteString
-    CALL    CrLf
+    ;MOV     EDX, OFFSET STR_MSGPASSEDSTRING   ; "PASSED STRING: "
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EDX, offset_Str_CurntTempLoc
+    ;CALL    WriteString
+    ;CALL    CrLf
 
     ; DEBUG PRINT: Print string length.
-    MOV     EDX, OFFSET STR_MSGLENGTH   ; "LENGTH: "
-    CALL    WriteString
-    MOV     EAX, len_Str_CurntTemp
-    CALL    WriteDec
-    CALL    CrLf
+    ;MOV     EDX, OFFSET STR_MSGLENGTH   ; "LENGTH: "
+    ;CALL    WriteString
+    ;MOV     EAX, len_Str_CurntTemp
+    ;CALL    WriteDec
+    ;CALL    CrLf
 
     ;------------------------------------------------------------
     ; INITIALIZE THE RESULT INTEGER.
@@ -374,50 +376,46 @@ ConvertStringToInteger PROC
     ; Use ECX as a counter, set to the length of the string.
     MOV     ECX, len_Str_CurntTemp
 
-    ; DEBUG PRINT: Indicate conversion start.
-    MOV     EDX, OFFSET STR_MSGCONVERTING
-    CALL    CrLf
-    CALL    WriteString
-    CALL    CrLf
 
     ;------------------------------------------------------------
     ; CONVERSION LOOP:
     ; For each character in the string, if it is between '0' and '9',
     ; update numInt = 10 * numInt + (char - '0').
-convert_loop:
-    LODSB                       ; Load byte from [ESI] into AL, ESI++, ECX--
-    CMP     AL, 0
-    JE      end_convert_loop    ; If null terminator, end loop.
-    CMP     AL, '0'
-    JB      end_convert_loop    ; If char < '0', break.
-    CMP     AL, '9'
-    JA      end_convert_loop    ; If char > '9', break.
-    ; Convert character to digit.
-    MOVZX   EAX, AL             ; Zero-extend AL into EAX.
-    SUB     EAX, '0'            ; EAX = digit value.
-    ; Multiply current numInt by 10.
-    MOV     EBX, numInt
-    IMUL    EBX, 10
-    ADD     EBX, EAX            ; Add digit value.
-    MOV     numInt, EBX         ; Update numInt.
-    LOOP    convert_loop
+    _convert_loop:
+        LODSB                       ; Load byte from [ESI] into AL, ESI++, ECX--
+        CMP     AL, 0
+        JE      _end_convert_loop    ; If null terminator, end loop.
+        CMP     AL, '0'
+        JB      _end_convert_loop    ; If char < '0', break.
+        CMP     AL, '9'
+        JA      _end_convert_loop    ; If char > '9', break.
+        ; Convert character to digit.
+        MOVZX   EAX, AL             ; Zero-extend AL into EAX.
+        SUB     EAX, '0'            ; EAX = digit value.
+        ; Multiply current numInt by 10.
+        MOV     EBX, numInt
+        IMUL    EBX, 10
+        ADD     EBX, EAX            ; Add digit value.
+        MOV     numInt, EBX         ; Update numInt.
+        LOOP    _convert_loop
 
-end_convert_loop:
-    ;------------------------------------------------------------
-    ; DEBUG PRINT: Print the converted integer.
-    MOV     EDX, OFFSET STR_MSGCONVERTED   ; "CONVERTED INTEGER: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, numInt
-    CALL    WriteDec
-    CALL    CrLf
+    ; end loop and store the converted integer value
+    _end_convert_loop:
+        ;------------------------------------------------------------
+        ; DEBUG PRINT: Print the converted integer.
+        ; MOV     EDX, OFFSET STR_MSGCONVERTED   ; "CONVERTED INTEGER: "
+        ; CALL    CrLf
+        ; CALL    WriteString
+        ; MOV     EAX, numInt
+        ; CALL    WriteDec
+        ; CALL    CrLf
 
-    ;------------------------------------------------------------
-    ; STORE THE RESULT:
-    ; Save the converted integer at the memory location pointed to by offset_Int_CurntTemp.
-    MOV     EBX, [EBP+12]
-    MOV     EAX, numInt
-    MOV     DWORD PTR [EBX], EAX
+        ;------------------------------------------------------------
+        ; STORE THE RESULT:
+        ; Save the converted integer at the memory location pointed to by offset_Int_CurntTemp.
+        MOV     EBX, [EBP+12]
+        MOV     EAX, numInt
+        MOV     DWORD PTR [EBX], EAX
 
     ;------------------------------------------------------------
     ; RESTORE REGISTERS AND RETURN.
@@ -429,7 +427,6 @@ end_convert_loop:
     POP     EAX
     RET     8
 ConvertStringToInteger ENDP
-
 
 
 
