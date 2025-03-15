@@ -12,6 +12,7 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 ;                           MOVSB is utilized in extracting current Temp reading iteration from the file.
 ;                           LODSB is utlized to convert a Temp reading from str to int format
 ; Implementation note 2:    Can accept Temp readings with prefix '+' or '-', and/or a leading zero
+; Limitation:   Maximum 250 Temperature reading.    
 
 INCLUDE Irvine32.inc
 
@@ -106,6 +107,8 @@ str_MsgSign                     BYTE    "The sign bit of the extracted current T
 str_MsgSignRemoved              BYTE    "The extracted current Temperature reading, sign removed if any: ", 0
 str_MsgConvertedInt             BYTE    "The converted integer value: ", 0
 str_MsgAfterSignCheck           BYTE    "The integer value after the sign check: ", 0
+str_MsgAddressOfMatrix          BYTE    "The address of the matrix in the calling procedure: ",0
+
 
 
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
@@ -125,7 +128,15 @@ STR_MSGLENGTH        BYTE "LENGTH: ",0
 STR_MSGCONVERTING    BYTE "CONVERTING STRING:",0
 STR_MSGCONVERTED     BYTE "CONVERTED INTEGER: ",0
 
-
+; For Debugging PROC Save Temp to Matrix
+str_MsgCurrentTemp          BYTE "CURRENT TEMP: ",0
+str_MsgRowIndex             BYTE "ROW INDEX: ",0
+str_MsgColIndex             BYTE "COL INDEX: ",0
+str_MsgMatrixPtr            BYTE "MATRIX PTR: ",0
+str_MsgElementIndex         BYTE "ELEMENT INDEX: ",0
+str_MsgByteOffset           BYTE "BYTE OFFSET: ",0
+str_MsgDestAddress          BYTE "DESTINATION ADDRESS: ",0
+str_MsgSavedInteger         BYTE "SAVED INTEGER: ",0
 
 
 
@@ -170,7 +181,7 @@ main ENDP
 ; registers changed: none
 ; ==========================================================================================================================
 ParseTempsFromString PROC
-    LOCAL   arr_TempMatrix[200]:DWORD, str_CurntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
+    LOCAL   arr_TempMatrix[251]:DWORD, str_CrntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
 
     PUSH	EAX
     PUSH	EBX
@@ -195,12 +206,21 @@ ParseTempsFromString PROC
 
 
 
+    ; DEBUG PRINT: Print the address of arr_TempMatrix.
+    CALL    CrLf
+    MOV     EDX, OFFSET str_MsgAddressOfMatrix
+    CALL    WriteString
+    LEA     EAX, arr_TempMatrix
+    CALL    WriteDec
+    CALL    CrLf
+
     ; Initialize temp matrix
     LEA     EAX, arr_TempMatrix
     PUSH    EAX
     MOV     EAX, LENGTHOF arr_TempMatrix
     PUSH    EAX
     CALL    Init_TempMatrix
+
 
 
     ;==================================================================
@@ -230,7 +250,7 @@ ParseTempsFromString PROC
     PUSH    offset_File_TempReadings
     LEA     EAX, int_CrntDlmterPos
     PUSH    EAX
-    MOV     EAX, 2
+    MOV     EAX, -1
     MOV     int_PrevDlmterPos, EAX
     PUSH    int_PrevDlmterPos
     CALL    Get_NextDlmtrPos
@@ -241,7 +261,7 @@ ParseTempsFromString PROC
    ; Get an iteration of Temp reading, save as string
    MOV      EAX, offset_File_TempReadings
    PUSH     EAX
-   LEA      EAX, str_CurntTemp
+   LEA      EAX, str_CrntTemp
    PUSH     EAX
    MOV      EAX, int_PrevDlmterPos
    PUSH     EAX
@@ -251,7 +271,7 @@ ParseTempsFromString PROC
    MOV      EDX, OFFSET str_MsgCurrentTempIteration
    CALL     CrLf
    CALL     WriteString
-   LEA      EDX, str_CurntTemp
+   LEA      EDX, str_CrntTemp
    CALL     WriteString
 
 
@@ -259,7 +279,7 @@ ParseTempsFromString PROC
    ; Detect the sign, store this info then removes the sign from the string
     LEA      EAX, int_Sign
     PUSH     EAX
-    LEA      EAX, str_CurntTemp
+    LEA      EAX, str_CrntTemp
     PUSH     EAX
     CALL     GetSign
     ; Debug Print
@@ -271,7 +291,7 @@ ParseTempsFromString PROC
     CALL    CrLf     
     MOV     EDX, OFFSET str_MsgSignRemoved
     CALL    WriteString
-    LEA     EDX, str_CurntTemp
+    LEA     EDX, str_CrntTemp
     CALL    WriteString
     CALL    CrLf
 
@@ -282,7 +302,7 @@ ParseTempsFromString PROC
 
     LEA     EAX, int_CrntTemp
     PUSH    EAX
-    LEA     EAX, str_CurntTemp
+    LEA     EAX, str_CrntTemp
     PUSH    EAX
     CALL    ConvertStringToInteger
     ; Debugging printouts
@@ -312,6 +332,36 @@ ParseTempsFromString PROC
     CALL    WriteString
     MOV     EAX, int_CrntTemp
     CALL    WriteInt
+    CALL    CrLf
+    CALL    CrLf
+   
+   ;==================================================================
+   ; Save current Temp iteration to Matrix
+   ; If yes, negate the  stored integer Temp reading
+    
+    ; DEBUG PRINT: Print the address of arr_TempMatrix.
+    CALL    CrLf
+    MOV     EDX, OFFSET str_MsgAddressOfMatrix
+    CALL    WriteString
+    LEA     EAX, arr_TempMatrix
+    CALL    WriteDec
+    CALL    CrLf
+
+
+    ; Test Row and Col values
+    MOV     EAX, 1
+    MOV     int_RowIndex, EAX
+    MOV     EAX, 0
+    MOV     int_ColIndex, EAX
+    PUSH    int_WidthMatrix
+    LEA     EAX, arr_TempMatrix
+    PUSH    EAX 
+    PUSH    int_ColIndex
+    PUSH    int_RowIndex
+    PUSH    int_CrntTemp
+    CALL    Save_CrntTemp_ToMatrix
+
+
 
 
     ;   Cleanup then Finish Proc
@@ -324,6 +374,165 @@ ParseTempsFromString PROC
     RET     4
 
 ParseTempsFromString ENDP
+
+;===================================================================================================
+
+Save_CrntTemp_ToMatrix PROC
+    LOCAL crntTemp:DWORD
+    LOCAL rowIndex:DWORD
+    LOCAL colIndex:DWORD
+    LOCAL offset_TempMatrixLoc:DWORD
+    LOCAL intWidthMatrix:DWORD
+    LOCAL elementIndex:DWORD
+    LOCAL byteOffset:DWORD
+    LOCAL destAddress:DWORD
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ;-------------------------------------------------------------------
+    ; PARAMETER HANDLING:
+    ; [EBP+8]  : int_CrntTemp       - the integer value to be saved.
+    ; [EBP+12] : int_RowIndex       - row index in the matrix.
+    ; [EBP+16] : int_ColIndex       - column index in the matrix.
+    ; [EBP+20] : offset_Arr_TempMatrix - pointer to the temperature matrix.
+    ; [EBP+24] : int_WidthMatrix    - matrix width (number of columns).
+    ;
+    ; Save parameters into local variables.
+    MOV     EAX, [EBP+8]
+    MOV     crntTemp, EAX
+
+    MOV     EAX, [EBP+12]
+    MOV     rowIndex, EAX
+
+    MOV     EAX, [EBP+16]
+    MOV     colIndex, EAX
+
+    MOV     EAX, [EBP+20]
+    MOV     offset_TempMatrixLoc, EAX
+
+    MOV     EAX, [EBP+24]
+    MOV     intWidthMatrix, EAX
+
+    ;-------------------------------------------------------------------
+    ; DEBUG PRINT: Print parameters.
+    ; (These debug prints can be enabled as needed.)
+    MOV     EDX, OFFSET str_MsgCurrentTemp
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, crntTemp
+    CALL    WriteInt
+
+    MOV     EDX, OFFSET str_MsgRowIndex
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, rowIndex
+    CALL    WriteInt
+
+    MOV     EDX, OFFSET str_MsgColIndex
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, colIndex
+    CALL    WriteInt
+
+    MOV     EDX, OFFSET str_MsgMatrixPtr
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, offset_TempMatrixLoc
+    CALL    WriteDec
+
+    ;-------------------------------------------------------------------
+    ; COMPUTE ELEMENT OFFSET:
+    ; elementIndex = rowIndex * intWidthMatrix + colIndex
+    MOV     EAX, rowIndex
+    IMUL    EAX, intWidthMatrix       ; EAX = rowIndex * intWidthMatrix
+    ADD     EAX, colIndex             ; EAX = element index
+    MOV     elementIndex, EAX
+
+    ; Compute byteOffset = elementIndex * 4 (DWORD size)
+    MOV     EAX, elementIndex
+    SHL     EAX, 2                    ; Multiply by 4.
+    MOV     byteOffset, EAX
+
+    ; Compute destination address = offset_TempMatrixLoc + byteOffset.
+    MOV     EAX, offset_TempMatrixLoc
+    ADD     EAX, byteOffset
+    MOV     destAddress, EAX
+
+    ;-------------------------------------------------------------------
+    ; DEBUG PRINT: Print computed indices and address.
+    MOV     EDX, OFFSET str_MsgElementIndex
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, elementIndex
+    CALL    WriteInt
+
+    MOV     EDX, OFFSET str_MsgByteOffset
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, byteOffset
+    CALL    WriteInt
+
+    MOV     EDX, OFFSET str_MsgDestAddress
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, destAddress
+    CALL    WriteDec
+
+    ;-------------------------------------------------------------------
+    ; SAVE THE INTEGER INTO THE MATRIX:
+    ; Simply move the DWORD value from crntTemp to the computed destination.
+    MOV     EAX, crntTemp
+    CALL    CrLf
+    CALL    CrLf
+    CALL    WriteInt
+    CALL    CrLf
+    CALL    CrLf
+
+MOV     EDI, destAddress  ; Load address into EDI
+MOV     EAX, crntTemp     ; Load temperature value
+MOV     DWORD PTR [EDI], EAX  ; Store the value at the correct address
+
+
+
+    ;-------------------------------------------------------------------
+    ; DEBUG PRINT: Verify saved value by reading from the destination.
+    MOV     EDX, OFFSET str_MsgSavedInteger
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, DWORD PTR [destAddress]
+    CALL    WriteInt
+    CALL    CrLf
+
+    ; ============================================
+    ; Print All Elements of arr_TempMatrix
+
+    MOV     ESI, [EBP+20] 
+    MOV     ECX, 250 ; Set loop counter (total elements)
+
+    _PrintLoop:
+        MOV     EAX, [ESI]         ; Load current array element
+        CALL    WriteInt                      ; Print number
+        MOV     AL, ' '
+        CALL    WriteChar                      ; Print space for separation
+
+        ADD     ESI, 4       ; Move to next DWORD (4 bytes)
+        LOOP    _PrintLoop                     ; Repeat until ECX = 0
+
+
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    RET     20
+Save_CrntTemp_ToMatrix ENDP
+
 
 
 ; ==========================================================================================================================
@@ -396,8 +605,8 @@ Negate_CurntTemp ENDP
 ; registers changed: none
 ; ==========================================================================================================================
 ConvertStringToInteger PROC
-    LOCAL offset_Str_CurntTempLoc:DWORD
-    LOCAL len_Str_CurntTemp:DWORD
+    LOCAL offset_str_CrntTempLoc:DWORD
+    LOCAL len_str_CrntTemp:DWORD
     LOCAL numInt:DWORD
     LOCAL loopCount:DWORD
 
@@ -411,24 +620,24 @@ ConvertStringToInteger PROC
     ;------------------------------------------------------------
     ; PARAMETERS:
     ; [EBP+12] : offset_Int_CurntTemp  - pointer where the converted integer will be stored.
-    ; [EBP+8]  : offset_Str_CurntTemp - pointer to the ASCII string, null Terminated
+    ; [EBP+8]  : offset_str_CrntTemp - pointer to the ASCII string, null Terminated
     ;
     ; Store the string pointer in a local variable.
     MOV     EAX, [EBP + 8]
-    MOV     offset_Str_CurntTempLoc, EAX
+    MOV     offset_str_CrntTempLoc, EAX
 
     ;------------------------------------------------------------
     ; GET STRING LENGTH USING IRVINE STR_LENGTH:
-    MOV     EAX, offset_Str_CurntTempLoc    ; Load pointer into EAX.
+    MOV     EAX, offset_str_CrntTempLoc    ; Load pointer into EAX.
     CALL    Str_Length                      ; Returns length in EAX.
-    MOV     len_Str_CurntTemp, EAX
+    MOV     len_str_CrntTemp, EAX
 
     ;------------------------------------------------------------
     ; DEBUG PRINT: Print pointer value.
     ;MOV     EDX, OFFSET STR_MSGPOINTER    ; "POINTER VALUE: "
     ;CALL    CrLf
     ;CALL    WriteString
-    ;MOV     EAX, offset_Str_CurntTempLoc
+    ;MOV     EAX, offset_str_CrntTempLoc
     ;CALL    WriteDec
     ;CALL    CrLf
 
@@ -436,14 +645,14 @@ ConvertStringToInteger PROC
     ;MOV     EDX, OFFSET STR_MSGPASSEDSTRING   ; "PASSED STRING: "
     ;CALL    CrLf
     ;CALL    WriteString
-    ;MOV     EDX, offset_Str_CurntTempLoc
+    ;MOV     EDX, offset_str_CrntTempLoc
     ;CALL    WriteString
     ;CALL    CrLf
 
     ; DEBUG PRINT: Print string length.
     ;MOV     EDX, OFFSET STR_MSGLENGTH   ; "LENGTH: "
     ;CALL    WriteString
-    ;MOV     EAX, len_Str_CurntTemp
+    ;MOV     EAX, len_str_CrntTemp
     ;CALL    WriteDec
     ;CALL    CrLf
 
@@ -454,9 +663,9 @@ ConvertStringToInteger PROC
     ;------------------------------------------------------------
     ; SET UP POINTERS FOR CONVERSION:
     ; Use ESI to point to the start of the string.
-    MOV     ESI, offset_Str_CurntTempLoc
+    MOV     ESI, offset_str_CrntTempLoc
     ; Use ECX as a counter, set to the length of the string.
-    MOV     ECX, len_Str_CurntTemp
+    MOV     ECX, len_str_CrntTemp
 
 
     ;------------------------------------------------------------
@@ -525,7 +734,7 @@ ConvertStringToInteger ENDP
 GetSign PROC
     PUSH    EBP
     MOV     EBP, ESP
-    SUB     ESP, 4                ; Allocate 4 bytes for local variable (offset_Str_CurntTempLoc)
+    SUB     ESP, 4                ; Allocate 4 bytes for local variable (offset_str_CrntTempLoc)
 
     PUSH    EDI
     PUSH    ESI
@@ -536,7 +745,7 @@ GetSign PROC
 
     ;------------------------------------------------------------
     ; Parameter Handling:
-    ; [EBP+8]  : offset_Str_CurntTemp - pointer to the string (e.g. "-15",0)
+    ; [EBP+8]  : offset_str_CrntTemp - pointer to the string (e.g. "-15",0)
     ; [EBP+12] : offset_Int_Sign      - pointer to the INT byte.
     ;
     ; Load the string pointer into EBX and store it in our local variable.
@@ -695,7 +904,7 @@ Extract_StrCrntTemp PROC
     ; Parameters (from caller):
     ;   [EBP+8]  : int_CrntDlmterPos   - current delimiter index.
     ;   [EBP+12] : int_Prev_DlmterPos    - previous delimiter index.
-    ;   [EBP+16] : offset_str_CurntTemp  - destination address for the extracted string.
+    ;   [EBP+16] : offset_str_CrntTemp  - destination address for the extracted string.
     ;   [EBP+20] : offset_File_TempReadings - file buffer address.
     ;
     ; Load parameters into local variables with the updated order.
@@ -772,7 +981,7 @@ Extract_StrCrntTemp PROC
     ADD     EAX, startPos              ; Compute effective source address.
     MOV     ESI, EAX                   ; ESI now points to the substring in the file buffer.
     ;
-    ; Destination pointer = offset_str_CurntTemp (passed as parameter at [EBP+16])
+    ; Destination pointer = offset_str_CrntTemp (passed as parameter at [EBP+16])
     MOV     EAX, [EBP+16]
     MOV     EDI, EAX                   ; EDI points to the destination buffer.
 
@@ -1109,6 +1318,15 @@ Init_TempMatrix PROC
     ;CALL    WriteDec
     ;CALL    CrLf
 
+    
+    ; DEBUG PRINT: Print the address of arr_TempMatrix.
+    CALL    CrLf
+    MOV     EDX, OFFSET str_MsgAddressOfMatrix
+    CALL    WriteString
+    MOV     EAX, [EBP+12]
+    CALL    WriteDec
+    CALL    CrLf
+
 
     ;==================================================================
     ; Initialize Temp Matrix with value 1
@@ -1116,10 +1334,13 @@ Init_TempMatrix PROC
     MOV EDI, [EBP+12]                                   ; Load address of the array into EDI
     MOV EAX, 1                                          ; Value to initialize (1)
 
+
+
     ; Loop to initialize Temp Matrix
     _InitLoop:
         MOV DWORD PTR [EDI], EAX                         ; Store 1 at current position
         ADD EDI, 4                                       ; Move to the next DWORD (4 bytes)
+        INC EAX
         LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
 
 
