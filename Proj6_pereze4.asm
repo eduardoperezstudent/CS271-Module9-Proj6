@@ -114,7 +114,7 @@ str_MsgAddressOfMatrix          BYTE    "The address of the matrix in the callin
 
 
 
-arr_TempMatrix                  DWORD   300 DUP(1)
+;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
 ; For debugging PROC GetSign
@@ -167,8 +167,7 @@ main PROC
 
 
     ;=================================
-    PUSH    OFFSET  arr_TempMatrix
-    PUSH    OFFSET  file_TempReadings
+    PUSH    OFFSET file_TempReadings
     CALL    ParseTempsFromString
 
 
@@ -192,7 +191,7 @@ main ENDP
 ; registers changed: none
 ; ==========================================================================================================================
 ParseTempsFromString PROC
-    LOCAL   str_CrntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
+    LOCAL   arr_TempMatrix[250]:DWORD, str_CrntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
 
     PUSH	EAX
     PUSH	EBX
@@ -203,7 +202,6 @@ ParseTempsFromString PROC
 
 
     ; Stack Layout:
-    ; [EBP + 12] = OFFSET arr_TempMatrix
     ; [EBP + 8] = OFFSET file_TempReadings
     ; [EBP + 4] = return address
     ; [EBP] = old ebp
@@ -215,6 +213,12 @@ ParseTempsFromString PROC
 
 
 
+    ; Initialize temp matrix
+    LEA     EAX, arr_TempMatrix
+    PUSH    EAX
+    MOV     EAX, LENGTHOF arr_TempMatrix
+    PUSH    EAX
+    CALL    Init_TempMatrix
 
 
 
@@ -257,17 +261,7 @@ ParseTempsFromString PROC
         ; Start inner loop (columns)
         _Loop_Columns:
 
-            CALL CrLf
-            MOV EDX, OFFSET str_MsgRowIndex
-            CALL WriteString
-            MOV EAX, int_RowIndex
-            CALL WriteDec
 
-            CALL CrLf
-            MOV EDX, OFFSET str_MsgColIndex
-            CALL WriteString
-            MOV EAX, int_ColIndex
-            CALL WriteDec
 
             ;==================================================================
             ; Get current delimiter position
@@ -358,7 +352,7 @@ ParseTempsFromString PROC
                 MOV     EAX, int_CrntTemp
                 CALL    WriteInt
                 CALL    CrLf
-                CALL    CrLf
+
    
                ;==================================================================
                ; Save current Temp iteration to Matrix
@@ -378,7 +372,8 @@ ParseTempsFromString PROC
                 ;MOV     EAX, 0                         ; for modular testing only
                 ;MOV     int_ColIndex, EAX              ; for modular testing only
                 PUSH    int_WidthMatrix
-                PUSH    [EBP + 12]                      ; OFFSET arr_TempMatrix
+                LEA     EAX, arr_TempMatrix
+                PUSH    EAX 
                 PUSH    int_ColIndex
                 PUSH    int_RowIndex
                 PUSH    int_CrntTemp
@@ -386,22 +381,6 @@ ParseTempsFromString PROC
 
 
             ; Check if Inner Loop is done
-
-            ; ============================================
-            ; Print All Elements of arr_TempMatrix
-
-            MOV     ESI, [EBP + 12]                                     ; Move To ESI: OFFSET arr_TempMatrix
-            MOV     ECX, 250 ; Set loop counter (total elements)
-
-            _PrintLoop:
-            MOV     EAX, [ESI]                  ; Load current array element
-            CALL    WriteInt                      ; Print number
-            MOV     AL, ' '
-            CALL    WriteChar                      ; Print space for separation
-
-            ADD     ESI, 4                          ; Move to next DWORD (4 bytes)
-            LOOP    _PrintLoop                     ; Repeat until ECX = 0
-
 
 
             MOV     EAX, int_ColIndex
@@ -423,8 +402,19 @@ ParseTempsFromString PROC
             MOV     EAX, int_PrevDlmterPos
             ADD     EAX, 2
             MOV     int_PrevDlmterPos, EAX
+
+            ; Save a sentinel Value
+            PUSH    int_WidthMatrix
+            LEA     EAX, arr_TempMatrix
+            PUSH    EAX 
+            PUSH    int_ColIndex
+            PUSH    int_RowIndex
+            PUSH    int_CrntTemp
+            CALL    Save_CrntTemp_ToMatrix
             
         ; Check if Outer Loop is done  
+        
+
 
         MOV     EAX, int_RowIndex
         INC     EAX
@@ -441,20 +431,18 @@ ParseTempsFromString PROC
 
     ; ============================================
     ; Print All Elements of arr_TempMatrix
-    CALL    CrLf
-    CALL    CrLf
 
-    MOV     ESI, [EBP + 12]                                     ; Move To ESI: OFFSET arr_TempMatrix
+    LEA     ESI, arr_TempMatrix
     MOV     ECX, 250 ; Set loop counter (total elements)
 
-    _PrintLoop2:
+    _PrintLoop:
         MOV     EAX, [ESI]                  ; Load current array element
         CALL    WriteInt                      ; Print number
         MOV     AL, ' '
         CALL    WriteChar                      ; Print space for separation
 
         ADD     ESI, 4                          ; Move to next DWORD (4 bytes)
-        LOOP    _PrintLoop2                    ; Repeat until ECX = 0
+        LOOP    _PrintLoop                     ; Repeat until ECX = 0
 
     ;   Cleanup then Finish Proc
     POP	    EDI
@@ -463,7 +451,7 @@ ParseTempsFromString PROC
     POP	    ECX
     POP 	EBX
     POP	    EAX
-    RET     8
+    RET     4
 
 ParseTempsFromString ENDP
 
@@ -703,53 +691,55 @@ ConvertStringToInteger PROC
     ; [EBP+8]  : offset_str_CrntTemp - pointer to the ASCII string, null Terminated
     ;
     ; Store the string pointer in a local variable.
-    MOV     EAX, [EBP + 8]
-    MOV     offset_str_CrntTempLoc, EAX
+    MOV     EDX, [EBP + 8]
+    MOV     offset_str_CrntTempLoc, EDX
 
     ;------------------------------------------------------------
+    ; GET STRING LENGTH;
+    MOV     ESI, offset_str_CrntTempLoc
+    XOR     ECX, ECX         ; Clear ECX (counter = 0).
 
-    MOV     EDX, [EBP + 8]                  ; Load pointer into EDX
-        MOV     ESI, EDX         ; Copy pointer to ESI.
-        XOR     ECX, ECX         ; Clear ECX (counter = 0).
+L_strlen:
+    CMP     BYTE PTR [ESI], 0 ; Check if the current byte is 0 (null terminator).
+    JE      L_done_strlen    ; If yes, jump to done.
+    INC     ECX              ; Otherwise, increment counter.
+    INC     ESI              ; Move pointer to the next character.
+    JMP     L_strlen         ; Loop again.
 
-    L_strlen:
-        CMP     BYTE PTR [ESI], 0 ; Check if the current byte is 0 (null terminator).
-        JE      L_done_strlen    ; If yes, jump to done.
-        INC     ECX              ; Otherwise, increment counter.
-        INC     ESI              ; Move pointer to the next character.
-        JMP     L_strlen         ; Loop again.
+L_done_strlen:
+    MOV     EAX, ECX         ; EAX now holds the string length.
+    ; Optionally: display the length.
+    ;CALL    WriteDec
+    ;CALL    CrLf                     ; Returns length in EAX.
 
-    L_done_strlen:
-        MOV     len_str_CrntTemp, ECX
-        MOV     EAX, ECX         ; EAX now holds the string length.
-        ; Optionally: display the length.
-        CALL    WriteDec
-        CALL    CrLf
 
+
+
+    MOV     len_str_CrntTemp, EAX
 
     ;------------------------------------------------------------
     ; DEBUG PRINT: Print pointer value.
-    MOV     EDX, OFFSET STR_MSGPOINTER          ; "POINTER VALUE: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, offset_str_CrntTempLoc
-    CALL    WriteDec
-    CALL    CrLf
+    ;MOV     EDX, OFFSET STR_MSGPOINTER    ; "POINTER VALUE: "
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EAX, offset_str_CrntTempLoc
+    ;CALL    WriteDec
+    ;CALL    CrLf
 
     ; DEBUG PRINT: Print passed string.
-    MOV     EDX, OFFSET STR_MSGPASSEDSTRING     ; "PASSED STRING: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EDX, offset_str_CrntTempLoc
-    CALL    WriteString
-    CALL    CrLf
+    ;MOV     EDX, OFFSET STR_MSGPASSEDSTRING   ; "PASSED STRING: "
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EDX, offset_str_CrntTempLoc
+    ;CALL    WriteString
+    ;CALL    CrLf
 
     ; DEBUG PRINT: Print string length.
-    MOV     EDX, OFFSET STR_MSGLENGTH           ; "LENGTH: "
-    CALL    WriteString
-    MOV     EAX, len_str_CrntTemp
-    CALL    WriteDec
-    CALL    CrLf
+    ;MOV     EDX, OFFSET STR_MSGLENGTH   ; "LENGTH: "
+    ;CALL    WriteString
+    ;MOV     EAX, len_str_CrntTemp
+    ;CALL    WriteDec
+    ;CALL    CrLf
 
     ;------------------------------------------------------------
     ; INITIALIZE THE RESULT INTEGER.
@@ -1013,7 +1003,6 @@ Extract_StrCrntTemp PROC
 
     ; Debugging Messages
     MOV     EDX, OFFSET str_MsgLoadedFile
-    CALL    CrLf
     CALL    CrLf
     CALL    WriteString
     MOV     EDX, file_TempReadingsLoc
@@ -1378,8 +1367,81 @@ Get_MatrixSize PROC
 
 Get_MatrixSize ENDP
 
+; ==========================================================================================================================
+; Init Temp Matrix
+; receives: Address of the Temperature array
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
+
+Init_TempMatrix PROC
+    PUSH    EBP
+    MOV     EBP, ESP
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ;-------------------------------------------------------------------
+    ; Parameters:
+    ;   [EBP+12] : OFFSET arr_TempMatrix
+    ;   [EBP+8] : length_Arr_TempMatrix
 
 
+    ; Debugging prints
+    ;MOV     EAX, [EBP+12]
+    ;CALL    CrLf
+    ;CALL     WriteDec
+    ;MOV     EAX, [EBP + 8]
+    ;CALL    CrLf
+    ;CALL    WriteDec
+    ;CALL    CrLf
+
+    
+    ;==================================================================
+    ; Initialize Temp Matrix with value 1
+    MOV ECX, [EBP + 8]                                  ; Loop counter - LENGHTOF Array
+    MOV EDI, [EBP+12]                                   ; Load address of the array into EDI
+    MOV EAX, -999                                       ; Value to initialize
+
+
+
+    ; Loop to initialize Temp Matrix
+    _InitLoop:
+        MOV DWORD PTR [EDI], EAX                         ; Store 1 at current position
+        ADD EDI, 4                                       ; Move to the next DWORD (4 bytes)
+        LOOP _InitLoop                                   ; Decrement ECX, loop if not zero
+
+
+        MOV ECX, [EBP+8]                                ; Set loop counter
+        MOV ESI, [EBP+12]                               ; Load base address of array
+
+    ; Print array
+    ;_PrintLoop:
+    ;    MOV EAX, DWORD PTR [ESI]                        ; Load current array value
+    ;    CALL WriteDec                                   ; Print number
+    ;    MOV AL, ' '
+    ;    CALL WriteChar
+    ;    ADD ESI, 4                                      ; Move to next DWORD
+    ;    LOOP _PrintLoop                                 ; Repeat until ECX = 0
+
+ 
+    ;-------------------------------------------------------------------
+    ; Restore Registers and Return:
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    POP     EBP
+    RET     8
+Init_TempMatrix ENDP
 
 
 
