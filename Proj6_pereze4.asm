@@ -191,7 +191,7 @@ main ENDP
 ; registers changed: none
 ; ==========================================================================================================================
 ParseTempsFromString PROC
-    LOCAL   arr_TempMatrix[251]:DWORD, str_CrntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
+    LOCAL   arr_TempMatrix[25]:DWORD, str_CrntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
 
     PUSH	EAX
     PUSH	EBX
@@ -247,127 +247,204 @@ ParseTempsFromString PROC
     ; Initialize outer loop (rows)
     MOV     EAX, 0
     MOV     int_RowIndex, EAX
-
-
-
-
-    ;==================================================================
-    ; Get current delimiter position
-    
-    PUSH    offset_File_TempReadings
-    LEA     EAX, int_CrntDlmterPos
-    PUSH    EAX
     MOV     EAX, -1
     MOV     int_PrevDlmterPos, EAX
-    PUSH    int_PrevDlmterPos
-    CALL    Get_NextDlmtrPos
-    ;!!!!! After current line is done, in the loop, need to add 2 to int_PrevDlmterPos to compensate for CrLf
+
+
+    ; Start outer loop (rows)
+    _Loop_Rows:
+        ; Initialize inner loop (columns)
+        MOV     EAX, 0
+        MOV     int_ColIndex, EAX
+
+
+        ; Start inner loop (columns)
+        _Loop_Columns:
+
+            CALL CrLf
+            MOV EDX, OFFSET str_MsgRowIndex
+            CALL WriteString
+            MOV EAX, int_RowIndex
+            CALL WriteDec
+
+            CALL CrLf
+            MOV EDX, OFFSET str_MsgColIndex
+            CALL WriteString
+            MOV EAX, int_ColIndex
+            CALL WriteDec
+
+            ;==================================================================
+            ; Get current delimiter position
+    
+            PUSH    offset_File_TempReadings
+            LEA     EAX, int_CrntDlmterPos
+            PUSH    EAX
+            ;MOV     EAX, -1                            ; Used for modular testing
+            ;MOV     int_PrevDlmterPos, EAX             ; Used for modular testing
+            PUSH    int_PrevDlmterPos
+            CALL    Get_NextDlmtrPos
+            ;!!!!! After current line is done, in the loop, need to add 2 to int_PrevDlmterPos to compensate for CrLf
 
    
-   ;==================================================================
-   ; Get an iteration of Temp reading, save as string
-   MOV      EAX, offset_File_TempReadings
-   PUSH     EAX
-   LEA      EAX, str_CrntTemp
-   PUSH     EAX
-   MOV      EAX, int_PrevDlmterPos
-   PUSH     EAX
-   MOV      EAX, int_CrntDlmterPos
-   PUSH     EAX
-   CALL     Extract_StrCrntTemp
-   MOV      EDX, OFFSET str_MsgCurrentTempIteration
-   CALL     CrLf
-   CALL     WriteString
-   LEA      EDX, str_CrntTemp
-   CALL     WriteString
+           ;==================================================================
+           ; Get an iteration of Temp reading, save as string
+           MOV      EAX, offset_File_TempReadings
+           PUSH     EAX
+           LEA      EAX, str_CrntTemp
+           PUSH     EAX
+           MOV      EAX, int_PrevDlmterPos
+           PUSH     EAX
+           MOV      EAX, int_CrntDlmterPos
+           PUSH     EAX
+           CALL     Extract_StrCrntTemp
+           MOV      EDX, OFFSET str_MsgCurrentTempIteration
+           CALL     CrLf
+           CALL     WriteString
+           LEA      EDX, str_CrntTemp
+           CALL     WriteString
 
 
-   ;==================================================================
-   ; Detect the sign, store this info then removes the sign from the string
-    LEA      EAX, int_Sign
-    PUSH     EAX
-    LEA      EAX, str_CrntTemp
-    PUSH     EAX
-    CALL     GetSign
-    ; Debug Print
-    CALL    CrLf
-    MOV     EDX, OFFSET str_MsgSign
-    CALL    WriteString
-    MOV     EAX, int_Sign
-    CALL    WriteDec
-    CALL    CrLf     
-    MOV     EDX, OFFSET str_MsgSignRemoved
-    CALL    WriteString
-    LEA     EDX, str_CrntTemp
-    CALL    WriteString
-    CALL    CrLf
+           ;==================================================================
+           ; Detect the sign, store this info then removes the sign from the string
+            LEA      EAX, int_Sign
+            PUSH     EAX
+            LEA      EAX, str_CrntTemp
+            PUSH     EAX
+            CALL     GetSign
+            ; Debug Print
+            CALL    CrLf
+            MOV     EDX, OFFSET str_MsgSign
+            CALL    WriteString
+            MOV     EAX, int_Sign
+            CALL    WriteDec
+            CALL    CrLf     
+            MOV     EDX, OFFSET str_MsgSignRemoved
+            CALL    WriteString
+            LEA     EDX, str_CrntTemp
+            CALL    WriteString
+            CALL    CrLf
 
 
     
-   ;==================================================================
-   ; Convert current Temp Reading to Integer
+           ;==================================================================
+           ; Convert current Temp Reading to Integer
 
-    LEA     EAX, int_CrntTemp
-    PUSH    EAX
-    LEA     EAX, str_CrntTemp
-    PUSH    EAX
-    CALL    ConvertStringToInteger
-    ; Debugging printouts
-    CALL    CrLf
-    MOV     EDX, OFFSET str_MsgConvertedInt
-    CALL    WriteString
-    MOV     EAX, int_CrntTemp
-    CALL    WriteInt
+            LEA     EAX, int_CrntTemp
+            PUSH    EAX
+            LEA     EAX, str_CrntTemp
+            PUSH    EAX
+            CALL    ConvertStringToInteger
+            ; Debugging printouts
+            CALL    CrLf
+            MOV     EDX, OFFSET str_MsgConvertedInt
+            CALL    WriteString
+            MOV     EAX, int_CrntTemp
+            CALL    WriteInt
 
 
-   ;==================================================================
-   ; Check if reference sign bit is set. 
-   ; If yes, negate the  stored integer Temp reading
+           ;==================================================================
+           ; Check if reference sign bit is set. 
+           ; If yes, negate the  stored integer Temp reading
     
-    MOV     EAX, int_Sign
-    CMP     EAX, 1
-    JNE     _Save_ToTempMatrix
-    LEA     EAX, int_CrntTemp
-    PUSH    EAX
-    CALL    Negate_CurntTemp
+            MOV     EAX, int_Sign
+            CMP     EAX, 1
+            JNE     _Save_ToTempMatrix
+            LEA     EAX, int_CrntTemp
+            PUSH    EAX
+            CALL    Negate_CurntTemp
 
 
-    _Save_ToTempMatrix:
-    ; Debugging printouts
-    CALL    CrLf
-    MOV     EDX, OFFSET str_MsgAfterSignCheck
-    CALL    WriteString
-    MOV     EAX, int_CrntTemp
-    CALL    WriteInt
-    CALL    CrLf
-    CALL    CrLf
+            _Save_ToTempMatrix:
+                ; Debugging printouts
+                CALL    CrLf
+                MOV     EDX, OFFSET str_MsgAfterSignCheck
+                CALL    WriteString
+                MOV     EAX, int_CrntTemp
+                CALL    WriteInt
+                CALL    CrLf
+                CALL    CrLf
    
-   ;==================================================================
-   ; Save current Temp iteration to Matrix
-   ; If yes, negate the  stored integer Temp reading
+               ;==================================================================
+               ; Save current Temp iteration to Matrix
+               ; If yes, negate the  stored integer Temp reading
     
-    ; DEBUG PRINT: Print the address of arr_TempMatrix.
-    CALL    CrLf
-    MOV     EDX, OFFSET str_MsgAddressOfMatrix
-    CALL    WriteString
-    LEA     EAX, arr_TempMatrix
-    CALL    WriteDec
-    CALL    CrLf
+                ; DEBUG PRINT: Print the address of arr_TempMatrix.
+                ;CALL    CrLf
+                ;MOV     EDX, OFFSET str_MsgAddressOfMatrix
+                ;CALL    WriteString
+                ;LEA     EAX, arr_TempMatrix
+                ;CALL    WriteDec
+                ;CALL    CrLf
+
+                ; Test Row and Col values
+                ;MOV     EAX, 1                         ; for modular testing only
+                ;MOV     int_RowIndex, EAX              ; for modular testing only
+                ;MOV     EAX, 0                         ; for modular testing only
+                ;MOV     int_ColIndex, EAX              ; for modular testing only
+                PUSH    int_WidthMatrix
+                LEA     EAX, arr_TempMatrix
+                PUSH    EAX 
+                PUSH    int_ColIndex
+                PUSH    int_RowIndex
+                PUSH    int_CrntTemp
+                CALL    Save_CrntTemp_ToMatrix
 
 
-    ; Test Row and Col values
-    MOV     EAX, 1
-    MOV     int_RowIndex, EAX
-    MOV     EAX, 0
-    MOV     int_ColIndex, EAX
-    PUSH    int_WidthMatrix
-    LEA     EAX, arr_TempMatrix
-    PUSH    EAX 
-    PUSH    int_ColIndex
-    PUSH    int_RowIndex
-    PUSH    int_CrntTemp
-    CALL    Save_CrntTemp_ToMatrix
+            ; Check if Inner Loop is done
+            CALL CrLf
+            MOV EDX, OFFSET str_MsgRowIndex
+            CALL WriteString
+            MOV EAX, int_RowIndex
+            CALL WriteDec
 
+            CALL CrLf
+            MOV EDX, OFFSET str_MsgColIndex
+            CALL WriteString
+            MOV EAX, int_ColIndex
+            CALL WriteDec
+            CALL    CrLf
+            MOV EAX, int_WidthMatrix
+            CALL WriteDec
+
+            MOV     EAX, int_ColIndex
+            INC     EAX
+            MOV     int_ColIndex, EAX
+            CMP     EAX, int_WidthMatrix
+            JAE      _End_LoopColumns
+
+            ; Preapare for next inner loop iteration
+            MOV     EAX, int_CrntDlmterPos
+            MOV     int_PrevDlmterPos, EAX
+            JMP     _Loop_Columns
+
+
+            ; End inner loop
+            _End_LoopColumns:
+            MOV     EAX, int_CrntDlmterPos
+            MOV     int_PrevDlmterPos, EAX
+            MOV     EAX, int_PrevDlmterPos
+            ADD     EAX, 2
+            MOV     int_PrevDlmterPos, EAX
+            
+        ; Check if Outer Loop is done  
+        
+        CALL CrLf
+        MOV EDX, OFFSET str_MsgRowIndex
+        CALL WriteString
+        MOV EAX, int_RowIndex
+        CALL WriteDec
+
+        MOV     EAX, int_RowIndex
+        INC     EAX
+        MOV     int_RowIndex, EAX
+        CMP     EAX, int_LenMatrix
+        JAE      _End_LoopRows
+
+        ; Prepare next Outer Loop iteration
+        JMP     _Loop_Rows
+
+        ; End Outer Loop
+        _End_LoopRows:
 
 
     ; ============================================
