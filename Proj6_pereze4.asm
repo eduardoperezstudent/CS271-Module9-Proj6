@@ -100,6 +100,9 @@ str_MsgPrevDlmtrPos             BYTE    "The previous delimiter position: ", 0
 str_MsgCrntDlmtrPos             BYTE    "The current delimiter position: ", 0
 str_MsgLoadedFile               BYTE    "The Loaded file: ", 0
 str_MsgCurrentTempIteration     BYTE    "The extracted current Temperature reading: ", 0
+str_MsgSign                     BYTE    "The sign bit of the extracted current Temperature reading: ", 0
+str_MsgSignRemoved              BYTE    "The extracted current Temperature reading, sign removed if any: ", 0
+
 
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
@@ -252,15 +255,20 @@ ParseTempsFromString PROC
     LEA      EAX, int_Sign
     PUSH     EAX
     LEA      EAX, str_CurntTemp
-    MOV      EDX, EAX
-        CALL    CrLf
-    CALL    CrLf
-    CALL    WriteString
-    CALL    CrLf
     PUSH     EAX
     CALL     GetSign
+    ; Debug Print
+    CALL    CrLf
+    MOV     EDX, OFFSET str_MsgSign
+    CALL    WriteString
+    MOV     EAX, int_Sign
+    CALL    WriteDec
+    CALL    CrLf     
+    MOV     EDX, OFFSET str_MsgSignRemoved
+    CALL    WriteString
+    LEA     EDX, str_CurntTemp
+    CALL    WriteString
     CALL     CrLf
-
 
     
     ;   Cleanup then Finish Proc
@@ -329,16 +337,16 @@ GetSign PROC
 
     ;------------------------------------------------------------
     ; Debug Print: Print first character (as char and ASCII code).
-    MOV     EDX, OFFSET str_MsgFirstChar   ; "FIRST CHAR: "
-    CALL    CrLf
-    CALL    WriteString
-    CALL    WriteChar          ; Print character in AL.
-    CALL    CrLf
-    MOVZX   EAX, AL            ; Zero-extend AL.
-    MOV     EDX, OFFSET str_MsgASCII   ; " ASCII: "
-    CALL    WriteString
-    CALL    WriteDec           ; Print ASCII code.
-    CALL    CrLf
+    ;MOV     EDX, OFFSET str_MsgFirstChar   ; "FIRST CHAR: "
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;CALL    WriteChar          ; Print character in AL.
+    ;CALL    CrLf
+    ;MOVZX   EAX, AL            ; Zero-extend AL.
+    ;MOV     EDX, OFFSET str_MsgASCII   ; " ASCII: "
+    ;CALL    WriteString
+    ;CALL    WriteDec           ; Print ASCII code.
+    ;CALL    CrLf
 
     ;------------------------------------------------------------
     ; Determine sign based solely on the first character.
@@ -354,19 +362,19 @@ GetSign PROC
 defaultPositive:
     ; First character is a digit; treat as positive.
     MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
-    MOV     BYTE PTR [EBX], 0   ; Set int_Sign to 0 (positive).
+    MOV     DWORD PTR [EBX], 0   ; Set int_Sign to 0 (positive).
     JMP     printSign
 
 setNegative:
     ; First character is '-' sign.
     MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
-    MOV     BYTE PTR [EBX], 1   ; Set int_Sign to 1 (negative).
+    MOV     DWORD PTR [EBX], 1   ; Set int_Sign to 1 (negative).
     JMP     shiftString
 
 setPositive:
     ; First character is '+' sign.
     MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
-    MOV     BYTE PTR [EBX], 0   ; Set int_Sign to 0 (positive).
+    MOV     DWORD PTR [EBX], 0   ; Set int_Sign to 0 (positive).
     JMP     shiftString
 
     ;------------------------------------------------------------
@@ -400,13 +408,13 @@ shift_loop:
     ;------------------------------------------------------------
 printSign:
     ; Debug Print: Print the obtained int_Sign value.
-    MOV     EDX, OFFSET str_MsgIntSign  ; "INT SIGN: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, [EBP+12]       ; Load pointer to int_Sign byte.
-    MOVZX   EAX, BYTE PTR [EAX] ; Get the sign value.
-    CALL    WriteDec            ; Print the sign value.
-    CALL    CrLf
+    ;MOV     EDX, OFFSET str_MsgIntSign  ; "INT SIGN: "
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EAX, [EBP+12]       ; Load pointer to int_Sign byte.
+    ;MOVZX   EAX, BYTE PTR [EAX] ; Get the sign value.
+    ;CALL    WriteDec            ; Print the sign value.
+    ;CALL    CrLf
 
     ;------------------------------------------------------------
 done:
@@ -420,8 +428,6 @@ done:
     POP     EBP
     RET     8
 GetSign ENDP
-
-
 
 
 

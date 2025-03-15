@@ -1,6 +1,6 @@
 ﻿  Assembling Proj6_pereze4.asm...
-Proj6_pereze4.asm(275): warning A6004: procedure argument or local not referenced : int_Len_Str_CrntTemp
-Proj6_pereze4.asm(275): warning A6004: procedure argument or local not referenced : int_RowIndex
-Proj6_pereze4.asm(275): warning A6004: procedure argument or local not referenced : int_ColIndex
-Proj6_pereze4.asm(275): warning A6004: procedure argument or local not referenced : int_CrntTemp
+Proj6_pereze4.asm(283): warning A6004: procedure argument or local not referenced : int_Len_Str_CrntTemp
+Proj6_pereze4.asm(283): warning A6004: procedure argument or local not referenced : int_RowIndex
+Proj6_pereze4.asm(283): warning A6004: procedure argument or local not referenced : int_ColIndex
+Proj6_pereze4.asm(283): warning A6004: procedure argument or local not referenced : int_CrntTemp
   Project.vcxproj -> C:\Users\eduar\source\repos\CS271\Project6\Debug\Project.exe
