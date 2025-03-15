@@ -105,6 +105,7 @@ str_MsgCurrentTempIteration     BYTE    "The extracted current Temperature readi
 str_MsgSign                     BYTE    "The sign bit of the extracted current Temperature reading: ", 0
 str_MsgSignRemoved              BYTE    "The extracted current Temperature reading, sign removed if any: ", 0
 str_MsgConvertedInt             BYTE    "The converted integer value: ", 0
+str_MsgAfterSignCheck           BYTE    "The integer value after the sign check: ", 0
 
 
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
@@ -229,7 +230,7 @@ ParseTempsFromString PROC
     PUSH    offset_File_TempReadings
     LEA     EAX, int_CrntDlmterPos
     PUSH    EAX
-    MOV     EAX, 6
+    MOV     EAX, 2
     MOV     int_PrevDlmterPos, EAX
     PUSH    int_PrevDlmterPos
     CALL    Get_NextDlmtrPos
@@ -292,6 +293,26 @@ ParseTempsFromString PROC
     CALL    WriteInt
 
 
+   ;==================================================================
+   ; Check if reference sign bit is set. 
+   ; If yes, negate the  stored integer Temp reading
+    
+    MOV     EAX, int_Sign
+    CMP     EAX, 1
+    JNE     _Save_ToTempMatrix
+    LEA     EAX, int_CrntTemp
+    PUSH    EAX
+    CALL    Negate_CurntTemp
+
+
+    _Save_ToTempMatrix:
+    ; Debugging printouts
+    CALL    CrLf
+    MOV     EDX, OFFSET str_MsgAfterSignCheck
+    CALL    WriteString
+    MOV     EAX, int_CrntTemp
+    CALL    WriteInt
+
 
     ;   Cleanup then Finish Proc
     POP	    EDI
@@ -303,6 +324,67 @@ ParseTempsFromString PROC
     RET     4
 
 ParseTempsFromString ENDP
+
+
+; ==========================================================================================================================
+; Negates an unsigned Integer
+; receives: Address of the current Temperature reading, an integer
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
+Negate_CurntTemp PROC
+    LOCAL originalValue:DWORD, negatedValue:DWORD
+
+    PUSH    EAX
+    PUSH    EBX
+
+    ;------------------------------------------------------------
+    ; PARAMETER HANDLING:
+    ; [EBP+8] : offset_Int_CurntTemp - pointer to the integer value to be negated.
+    ;------------------------------------------------------------
+    MOV     EAX, [EBP+8]                ; EAX = pointer to the integer.
+    MOV     EBX, [EAX]                  ; Load the original integer value.
+    MOV     originalValue, EBX
+
+
+    ;------------------------------------------------------------
+    ; DEBUG PRINT: Print original integer value (optional).
+    ; MOV     EDX, OFFSET str_MsgOriginal  ; "ORIGINAL VALUE: "
+    ; CALL    CrLf
+    ; CALL    WriteString
+    ; MOV     EAX, originalValue
+    ; CALL    WriteInt
+    ; CALL    CrLf
+
+    ;------------------------------------------------------------
+    ; NEGATE THE INTEGER:
+    MOV     EBX, originalValue          ; Copy original value to EBX.
+    NEG     EBX                         ; EBX = -originalValue.
+    MOV     negatedValue, EBX           ; Store the negated value in local variable.
+
+    ;------------------------------------------------------------
+    ; STORE THE NEGATED VALUE:
+    MOV     EAX, [EBP + 8]
+    MOV     [EAX], EBX        ; Write negated value back to memory.
+
+    ;------------------------------------------------------------
+    ; DEBUG PRINT: Print negated integer value (optional).
+    ; MOV     EDX, OFFSET str_MsgNegated   ; "NEGATED VALUE: "
+    ; CALL    CrLf
+    ; CALL    WriteString
+    ; MOV     EAX, negatedValue
+    ; CALL    WriteInt
+    ; CALL    CrLf
+
+
+    POP     EBX
+    POP     EAX
+    RET     4
+Negate_CurntTemp ENDP
+
+
 
 
 ; ==========================================================================================================================
