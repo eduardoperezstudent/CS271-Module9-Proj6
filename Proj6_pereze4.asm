@@ -104,6 +104,21 @@ str_MsgCurrentTempIteration     BYTE    "The extracted current Temperature readi
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
+; For debugging
+STR_MSGPOINTER         BYTE "POINTER VALUE: ",0
+STR_MSGPASSEDSTRING    BYTE "PASSED STRING: ",0
+STR_MSGFIRSTCHAR       BYTE "FIRST CHAR: ",0
+STR_MSGASCII           BYTE " ASCII: ",0
+STR_MSGSHIFTING        BYTE "SHIFTING STRING...",0
+STR_MSGSHIFTEDSTRING   BYTE "SHIFTED STRING: ",0
+STR_MSGINTSIGN         BYTE "INT SIGN: ",0
+
+
+
+
+
+
+
 .code
 main PROC
 
@@ -174,7 +189,7 @@ ParseTempsFromString PROC
     PUSH    EAX
     MOV     EAX, LENGTHOF arr_TempMatrix
     PUSH    EAX
-    CALL    init_TempMatrix
+    CALL    Init_TempMatrix
 
 
     ;==================================================================
@@ -184,7 +199,7 @@ ParseTempsFromString PROC
     LEA     EAX, int_LenMatrix
     PUSH    EAX
     PUSH    offset_File_TempReadings
-    CALL    get_MatrixSize
+    CALL    Get_MatrixSize
 
     CALL    CrLf
     MOV     EDX, OFFSET str_MsgNumberofRows
@@ -204,10 +219,10 @@ ParseTempsFromString PROC
     PUSH    offset_File_TempReadings
     LEA     EAX, int_CrntDlmterPos
     PUSH    EAX
-    MOV     EAX, -1
+    MOV     EAX, 17
     MOV     int_PrevDlmterPos, EAX
     PUSH    int_PrevDlmterPos
-    CALL    get_NextDlmtrPos
+    CALL    Get_NextDlmtrPos
     ;!!!!! After current line is done, in the loop, need to add 2 to int_PrevDlmterPos to compensate for CrLf
 
    
@@ -222,14 +237,33 @@ ParseTempsFromString PROC
    PUSH     EAX
    MOV      EAX, int_CrntDlmterPos
    PUSH     EAX
-   CALL     extract_StrCrntTemp
+   CALL     Extract_StrCrntTemp
    MOV      EDX, OFFSET str_MsgCurrentTempIteration
    CALL     CrLf
    CALL     WriteString
    LEA      EDX, str_CurntTemp
    CALL     WriteString
-    
 
+
+
+
+   ;==================================================================
+   ; Detect the sign, store this info then removes the sign from the string
+    LEA      EAX, int_Sign
+    PUSH     EAX
+    LEA      EAX, str_CurntTemp
+    MOV      EDX, EAX
+        CALL    CrLf
+    CALL    CrLf
+    CALL    WriteString
+    CALL    CrLf
+    PUSH     EAX
+    CALL     GetSign
+    CALL     CrLf
+
+
+    
+    ;   Cleanup then Finish Proc
     POP	    EDI
     POP 	ESI
     POP	    EDX
@@ -241,16 +275,165 @@ ParseTempsFromString PROC
 ParseTempsFromString ENDP
 
 
+; ==========================================================================================================================
+; Detects sign of the current temp reading saved as string. Removes the sign
+; receives: Address of the Temperature reading
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
+
+GetSign PROC
+    PUSH    EBP
+    MOV     EBP, ESP
+    SUB     ESP, 4                ; Allocate 4 bytes for local variable (offset_Str_CurntTempLoc)
+
+    PUSH    EDI
+    PUSH    ESI
+    PUSH    EDX
+    PUSH    ECX
+    PUSH    EBX
+    PUSH    EAX
+
+    ;------------------------------------------------------------
+    ; Parameter Handling:
+    ; [EBP+8]  : offset_Str_CurntTemp - pointer to the string (e.g. "-15",0)
+    ; [EBP+12] : offset_Int_Sign      - pointer to the INT byte.
+    ;
+    ; Load the string pointer into EBX and store it in our local variable.
+    MOV     EBX, [EBP+8]          ; EBX = pointer to passed string.
+    MOV     DWORD PTR [EBP-4], EBX  ; Store this pointer in local variable.
+
+    ;------------------------------------------------------------
+    ; Debug Print: Print pointer value.
+    MOV     EDX, OFFSET str_MsgPointer  ; "POINTER VALUE: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, EBX            ; Use EBX directly.
+    CALL    WriteDec
+    CALL    CrLf
+
+    ;------------------------------------------------------------
+    ; Debug Print: Print passed string.
+    MOV     EDX, OFFSET str_MsgPassedString  ; "PASSED STRING: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EDX, EBX
+    CALL    WriteString
+
+    ;------------------------------------------------------------
+    ; Read the first character from the string.
+    MOV     EAX, [EBP-4]         ; Get stored pointer.
+    MOV     AL, BYTE PTR [EAX]   ; AL = first character.
+
+    ;------------------------------------------------------------
+    ; Debug Print: Print first character (as char and ASCII code).
+    MOV     EDX, OFFSET str_MsgFirstChar   ; "FIRST CHAR: "
+    CALL    CrLf
+    CALL    WriteString
+    CALL    WriteChar          ; Print character in AL.
+    CALL    CrLf
+    MOVZX   EAX, AL            ; Zero-extend AL.
+    MOV     EDX, OFFSET str_MsgASCII   ; " ASCII: "
+    CALL    WriteString
+    CALL    WriteDec           ; Print ASCII code.
+    CALL    CrLf
+
+    ;------------------------------------------------------------
+    ; Determine sign based solely on the first character.
+    CMP     AL, '-'            ; If first character is '-'
+    JE      setNegative
+    CMP     AL, '+'            ; If first character is '+'
+    JE      setPositive
+    CMP     AL, '0'
+    JB      defaultPositive    ; If not a digit, default positive.
+    CMP     AL, '9'
+    JA      defaultPositive    ; If not a digit, default positive.
+
+defaultPositive:
+    ; First character is a digit; treat as positive.
+    MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
+    MOV     BYTE PTR [EBX], 0   ; Set int_Sign to 0 (positive).
+    JMP     printSign
+
+setNegative:
+    ; First character is '-' sign.
+    MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
+    MOV     BYTE PTR [EBX], 1   ; Set int_Sign to 1 (negative).
+    JMP     shiftString
+
+setPositive:
+    ; First character is '+' sign.
+    MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
+    MOV     BYTE PTR [EBX], 0   ; Set int_Sign to 0 (positive).
+    JMP     shiftString
+
+    ;------------------------------------------------------------
+shiftString:
+    ; Debug Print: Indicate that the string is being shifted.
+    MOV     EDX, OFFSET str_MsgShifting  ; "SHIFTING STRING..."
+    CALL    CrLf
+    CALL    WriteString
+
+    ; Shift the string left by one byte (remove the sign).
+    ; Use the local variable stored at [EBP-4] as the pointer.
+    MOV     EAX, [EBP-4]        ; EAX = original string pointer.
+    ADD     EAX, 1              ; Point to the second character.
+    MOV     ESI, EAX            ; Source pointer = string + 1.
+    MOV     EAX, [EBP-4]        ; Get original pointer again.
+    MOV     EDI, EAX            ; Destination pointer = original string pointer.
+    CLD                         ; Clear direction flag.
+shift_loop:
+    LODSB                       ; Load byte from source (ESI) into AL; increments ESI.
+    STOSB                       ; Store byte in AL into destination (EDI); increments EDI.
+    CMP     AL, 0               ; Check for null terminator.
+    JNE     shift_loop
+    ; Debug Print: Print shifted string.
+    MOV     EDX, OFFSET str_MsgShiftedString  ; "SHIFTED STRING: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EDX, [EBP-4]        ; Local variable still holds original pointer.
+    CALL    WriteString
+    JMP     printSign
+
+    ;------------------------------------------------------------
+printSign:
+    ; Debug Print: Print the obtained int_Sign value.
+    MOV     EDX, OFFSET str_MsgIntSign  ; "INT SIGN: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, [EBP+12]       ; Load pointer to int_Sign byte.
+    MOVZX   EAX, BYTE PTR [EAX] ; Get the sign value.
+    CALL    WriteDec            ; Print the sign value.
+    CALL    CrLf
+
+    ;------------------------------------------------------------
+done:
+    POP     EAX
+    POP     EBX
+    POP     ECX
+    POP     EDX
+    POP     ESI
+    POP     EDI
+    MOV     ESP, EBP
+    POP     EBP
+    RET     8
+GetSign ENDP
+
+
+
+
 
 ; ==========================================================================================================================
-; Extracts temperature readings, in string delimited format, from memory. Then saves the readings in an arrary as integers
+; Extracts a temperature reading, in string delimited format, from memory. 
 ; receives: Address of the Temperature array
 ; returns:
 ; preconditions: passed address references of array
 ; postconditions: values saved in array
 ; registers changed: none
 ; ==========================================================================================================================
-extract_StrCrntTemp PROC
+Extract_StrCrntTemp PROC
     ;-------------------------------------------------------------------
     ; Local Variables:
     ;   prev_DlmterPos      - stores the parameter int_Prev_DlmterPos (previous delimiter index)
@@ -309,7 +492,6 @@ extract_StrCrntTemp PROC
     CALL    WriteString
     MOV     EAX, crnt_DlmterPos
     CALL    WriteInt
-
 
 
     ;-------------------------------------------------------------------
@@ -387,7 +569,7 @@ extract_StrCrntTemp PROC
     POP     EBX
     POP     EAX
     RET     20                        ; Clean up 20 bytes (4 parameters) from the stack.
-extract_StrCrntTemp ENDP
+Extract_StrCrntTemp ENDP
 
 
 
@@ -400,7 +582,7 @@ extract_StrCrntTemp ENDP
 ; postconditions: values saved in memory
 ; registers changed: none
 ; ==========================================================================================================================
-get_NextDlmtrPos PROC
+Get_NextDlmtrPos PROC
     LOCAL crntDlmtrPos:DWORD
     LOCAL prevDlmterPos:DWORD
     LOCAL offset_File_TempReadingsLoc:DWORD
@@ -516,7 +698,7 @@ get_NextDlmtrPos PROC
         POP     EBX
         POP     EAX
         RET     12
-get_NextDlmtrPos ENDP
+Get_NextDlmtrPos ENDP
 
 
 
@@ -529,7 +711,7 @@ get_NextDlmtrPos ENDP
 ; postconditions: values saved in memory
 ; registers changed: none
 ; ==========================================================================================================================
-get_MatrixSize PROC
+Get_MatrixSize PROC
 
     LOCAL int_NumRows:DWORD
     LOCAL int_NumCols:DWORD
@@ -654,7 +836,7 @@ get_MatrixSize PROC
     POP     EAX
     RET     12
 
-get_MatrixSize ENDP
+Get_MatrixSize ENDP
 
 ; ==========================================================================================================================
 ; Init Temp Matrix
@@ -665,7 +847,7 @@ get_MatrixSize ENDP
 ; registers changed: none
 ; ==========================================================================================================================
 
-init_TempMatrix PROC
+Init_TempMatrix PROC
     PUSH    EBP
     MOV     EBP, ESP
 
@@ -728,7 +910,7 @@ init_TempMatrix PROC
     POP     EAX
     POP     EBP
     RET     8
-init_TempMatrix ENDP
+Init_TempMatrix ENDP
 
 
 
