@@ -102,12 +102,13 @@ str_MsgLoadedFile               BYTE    "The Loaded file: ", 0
 str_MsgCurrentTempIteration     BYTE    "The extracted current Temperature reading: ", 0
 str_MsgSign                     BYTE    "The sign bit of the extracted current Temperature reading: ", 0
 str_MsgSignRemoved              BYTE    "The extracted current Temperature reading, sign removed if any: ", 0
+str_MsgConvertedInt             BYTE    "The converted integer value: ", 0
 
 
 ;arr_TempMatrix                  DWORD   300 DUP(1), 0FFFFFFFFh
 
 
-; For debugging
+; For debugging PROC GetSign
 STR_MSGPOINTER         BYTE "POINTER VALUE: ",0
 STR_MSGPASSEDSTRING    BYTE "PASSED STRING: ",0
 STR_MSGFIRSTCHAR       BYTE "FIRST CHAR: ",0
@@ -116,6 +117,10 @@ STR_MSGSHIFTING        BYTE "SHIFTING STRING...",0
 STR_MSGSHIFTEDSTRING   BYTE "SHIFTED STRING: ",0
 STR_MSGINTSIGN         BYTE "INT SIGN: ",0
 
+; For debugging PROC ConvertStrToInteger
+STR_MSGLENGTH        BYTE "LENGTH: ",0
+STR_MSGCONVERTING    BYTE "CONVERTING STRING:",0
+STR_MSGCONVERTED     BYTE "CONVERTED INTEGER: ",0
 
 
 
@@ -222,13 +227,12 @@ ParseTempsFromString PROC
     PUSH    offset_File_TempReadings
     LEA     EAX, int_CrntDlmterPos
     PUSH    EAX
-    MOV     EAX, 17
+    MOV     EAX, 6
     MOV     int_PrevDlmterPos, EAX
     PUSH    int_PrevDlmterPos
     CALL    Get_NextDlmtrPos
     ;!!!!! After current line is done, in the loop, need to add 2 to int_PrevDlmterPos to compensate for CrLf
 
-   
    
    ;==================================================================
    ; Get an iteration of Temp reading, save as string
@@ -246,8 +250,6 @@ ParseTempsFromString PROC
    CALL     WriteString
    LEA      EDX, str_CurntTemp
    CALL     WriteString
-
-
 
 
    ;==================================================================
@@ -268,9 +270,27 @@ ParseTempsFromString PROC
     CALL    WriteString
     LEA     EDX, str_CurntTemp
     CALL    WriteString
-    CALL     CrLf
+    CALL    CrLf
+
 
     
+   ;==================================================================
+   ; Convert current Temp Reading to Integer
+
+    LEA     EAX, int_CrntTemp
+    PUSH    EAX
+    LEA     EAX, str_CurntTemp
+    PUSH    EAX
+    CALL    ConvertStringToInteger
+    ; Debugging printouts
+    CALL    CrLf
+    MOV     EDX, OFFSET str_MsgConvertedInt
+    CALL    WriteString
+    MOV     EAX, int_CrntTemp
+    CALL    WriteInt
+
+
+
     ;   Cleanup then Finish Proc
     POP	    EDI
     POP 	ESI
@@ -281,6 +301,137 @@ ParseTempsFromString PROC
     RET     4
 
 ParseTempsFromString ENDP
+
+
+; ==========================================================================================================================
+; Converts the current string Temperature reading to Integer
+; receives: Address of the current Temperature reading
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
+ConvertStringToInteger PROC
+    LOCAL offset_Str_CurntTempLoc:DWORD
+    LOCAL len_Str_CurntTemp:DWORD
+    LOCAL numInt:DWORD
+    LOCAL loopCount:DWORD
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ;------------------------------------------------------------
+    ; PARAMETER HANDLING:
+    ; [EBP+8]  : offset_Str_CurntTemp - pointer to the ASCII string (e.g. "123",0)
+    ; [EBP+12] : offset_Int_CurntTemp  - pointer where the converted integer will be stored.
+    ;
+    ; Store the string pointer in a local variable.
+    MOV     EAX, [EBP+8]
+    MOV     offset_Str_CurntTempLoc, EAX
+
+    ;------------------------------------------------------------
+    ; GET STRING LENGTH USING IRVINE STR_LENGTH:
+    MOV     EAX, offset_Str_CurntTempLoc  ; Load pointer into EAX.
+    CALL    Str_Length                   ; Returns length in EAX.
+    MOV     len_Str_CurntTemp, EAX
+
+    ;------------------------------------------------------------
+    ; DEBUG PRINT: Print pointer value.
+    MOV     EDX, OFFSET STR_MSGPOINTER    ; "POINTER VALUE: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, offset_Str_CurntTempLoc
+    CALL    WriteDec
+    CALL    CrLf
+
+    ; DEBUG PRINT: Print passed string.
+    MOV     EDX, OFFSET STR_MSGPASSEDSTRING   ; "PASSED STRING: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EDX, offset_Str_CurntTempLoc
+    CALL    WriteString
+    CALL    CrLf
+
+    ; DEBUG PRINT: Print string length.
+    MOV     EDX, OFFSET STR_MSGLENGTH   ; "LENGTH: "
+    CALL    WriteString
+    MOV     EAX, len_Str_CurntTemp
+    CALL    WriteDec
+    CALL    CrLf
+
+    ;------------------------------------------------------------
+    ; INITIALIZE THE RESULT INTEGER.
+    MOV     numInt, 0
+
+    ;------------------------------------------------------------
+    ; SET UP POINTERS FOR CONVERSION:
+    ; Use ESI to point to the start of the string.
+    MOV     ESI, offset_Str_CurntTempLoc
+    ; Use ECX as a counter, set to the length of the string.
+    MOV     ECX, len_Str_CurntTemp
+
+    ; DEBUG PRINT: Indicate conversion start.
+    MOV     EDX, OFFSET STR_MSGCONVERTING
+    CALL    CrLf
+    CALL    WriteString
+    CALL    CrLf
+
+    ;------------------------------------------------------------
+    ; CONVERSION LOOP:
+    ; For each character in the string, if it is between '0' and '9',
+    ; update numInt = 10 * numInt + (char - '0').
+convert_loop:
+    LODSB                       ; Load byte from [ESI] into AL, ESI++, ECX--
+    CMP     AL, 0
+    JE      end_convert_loop    ; If null terminator, end loop.
+    CMP     AL, '0'
+    JB      end_convert_loop    ; If char < '0', break.
+    CMP     AL, '9'
+    JA      end_convert_loop    ; If char > '9', break.
+    ; Convert character to digit.
+    MOVZX   EAX, AL             ; Zero-extend AL into EAX.
+    SUB     EAX, '0'            ; EAX = digit value.
+    ; Multiply current numInt by 10.
+    MOV     EBX, numInt
+    IMUL    EBX, 10
+    ADD     EBX, EAX            ; Add digit value.
+    MOV     numInt, EBX         ; Update numInt.
+    LOOP    convert_loop
+
+end_convert_loop:
+    ;------------------------------------------------------------
+    ; DEBUG PRINT: Print the converted integer.
+    MOV     EDX, OFFSET STR_MSGCONVERTED   ; "CONVERTED INTEGER: "
+    CALL    CrLf
+    CALL    WriteString
+    MOV     EAX, numInt
+    CALL    WriteDec
+    CALL    CrLf
+
+    ;------------------------------------------------------------
+    ; STORE THE RESULT:
+    ; Save the converted integer at the memory location pointed to by offset_Int_CurntTemp.
+    MOV     EBX, [EBP+12]
+    MOV     EAX, numInt
+    MOV     DWORD PTR [EBX], EAX
+
+    ;------------------------------------------------------------
+    ; RESTORE REGISTERS AND RETURN.
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    RET     8
+ConvertStringToInteger ENDP
+
+
+
 
 
 ; ==========================================================================================================================
@@ -315,20 +466,20 @@ GetSign PROC
 
     ;------------------------------------------------------------
     ; Debug Print: Print pointer value.
-    MOV     EDX, OFFSET str_MsgPointer  ; "POINTER VALUE: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, EBX            ; Use EBX directly.
-    CALL    WriteDec
-    CALL    CrLf
+    ; MOV     EDX, OFFSET str_MsgPointer  ; "POINTER VALUE: "
+    ; CALL    CrLf
+    ; CALL    WriteString
+    ; MOV     EAX, EBX            ; Use EBX directly.
+    ; CALL    WriteDec
+    ; CALL    CrLf
 
     ;------------------------------------------------------------
     ; Debug Print: Print passed string.
-    MOV     EDX, OFFSET str_MsgPassedString  ; "PASSED STRING: "
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EDX, EBX
-    CALL    WriteString
+    ;MOV     EDX, OFFSET str_MsgPassedString  ; "PASSED STRING: "
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EDX, EBX
+    ;CALL    WriteString
 
     ;------------------------------------------------------------
     ; Read the first character from the string.
@@ -380,9 +531,9 @@ setPositive:
     ;------------------------------------------------------------
 shiftString:
     ; Debug Print: Indicate that the string is being shifted.
-    MOV     EDX, OFFSET str_MsgShifting  ; "SHIFTING STRING..."
-    CALL    CrLf
-    CALL    WriteString
+    ;MOV     EDX, OFFSET str_MsgShifting  ; "SHIFTING STRING..."
+    ;CALL    CrLf
+    ;CALL    WriteString
 
     ; Shift the string left by one byte (remove the sign).
     ; Use the local variable stored at [EBP-4] as the pointer.
@@ -399,10 +550,10 @@ shift_loop:
     JNE     shift_loop
     ; Debug Print: Print shifted string.
     MOV     EDX, OFFSET str_MsgShiftedString  ; "SHIFTED STRING: "
-    CALL    CrLf
-    CALL    WriteString
+    ;CALL    CrLf
+    ;CALL    WriteString
     MOV     EDX, [EBP-4]        ; Local variable still holds original pointer.
-    CALL    WriteString
+    ;CALL    WriteString
     JMP     printSign
 
     ;------------------------------------------------------------
