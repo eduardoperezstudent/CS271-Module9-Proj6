@@ -13,7 +13,8 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 ;                           LODSB is utlized to convert a Temp reading from str to int format
 ; Implementation note 2:    Can accept Temp readings with prefix '+' or '-', and/or a leading zero
 ; Implementation note 3:    Program dynamically determines the number of columns of the character delimited file. It doesnt utilize TEMPS_PER_DAY
-; Limitation:               Maximum of about 150 Temperature readings and 50 rows     
+; Limitation:               Maximum of about 150 Temperature readings and 50 rows
+; Limitation:               Can not handle an empty line  
 
 INCLUDE Irvine32.inc
 
@@ -114,7 +115,7 @@ str_MsgAddressOfMatrix          BYTE    "The address of the matrix in the callin
 
 
 
-arr_TempMatrix                  DWORD   400 DUP(1)
+arr_TempMatrix                  DWORD   400 DUP(-1000)
 
 
 ; For debugging PROC GetSign
@@ -172,14 +173,187 @@ main PROC
     CALL    ParseTempsFromString
 
 
+    ;=================================
     ; Close File
-    MOV     EAX, fileHandle               ; Load file handle
-    CALL    CloseFile                      ; Close the file
+    MOV     EAX, fileHandle 
+    CALL    CloseFile
+
+    ;=================================
+    PUSH    OFFSET  arr_TempMatrix
+    CALL    WriteTempsReverse
+
+
+
 
 
 
 	Invoke ExitProcess,0	; exit to operating system
 main ENDP
+
+
+
+;---------------------------------------------------------------
+; Procedure: WriteTempsReverse
+; Function:    Receives an OFFSET to a 2D matrix.
+;              For each row (each row ends with -999; the entire matrix
+;              ends with -1000), prints the row’s elements in reverse order.
+;              After each element (including the last), prints the delimiter
+;              defined as the global constant DELIMITER.
+;              Debug printouts are included to verify correct parameter passing.
+;
+; Local Variables:
+;   crntTemp              - Holds the current matrix element (signed integer)
+;   rowIndex              - Reverse printing counter for the current row
+;   colIndex              - Number of valid elements in the current row
+;   offsetTempMatrixLoc   - Holds the pointer to the current location in the matrix
+;   lastElementPtr        - Holds the pointer to the last valid element in the row
+;
+; Must use at least one of these: STOSD, LODSD, MOVSD, CMPSD, SCASD.
+; In this code, LODSD is used to load the next element while counting columns.
+;---------------------------------------------------------------
+
+
+WriteTempsReverse PROC
+
+    ; Allocate local variables on the stack:
+    LOCAL   crntTemp:DWORD              ; Current temperature value from matrix element
+    LOCAL   rowIndex:DWORD              ; Reverse printing counter for the current row
+    LOCAL   colIndex:DWORD              ; Number of valid elements in the current row
+    LOCAL   offsetTempMatrixLoc:DWORD   ; Holds the pointer to the current row in the matrix
+    LOCAL   lastElementPtr:DWORD        ; Pointer to last valid element in the row
+
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+    PUSH    ESI
+    PUSH    EDI
+
+    ;--------------------------------------------------
+    ; Debug: Verify parameter is passed correctly.
+    ; The parameter (offset_Arr_TempMatrix) is located at [EBP+8].
+    MOV     EAX, [EBP+8]                ; Load the procedure parameter (pointer to matrix)
+    MOV     offsetTempMatrixLoc, EAX    ; Store it into our local variable
+    ; Debug Print: Show stored pointer value.
+    MOV     EAX, offsetTempMatrixLoc    ; (no extra brackets!)
+    CALL    WRITEINT                    ; Should print the matrix base address
+    CALL    CRLF
+
+    ;--------------------------------------------------
+    ; Outer Loop: Process each row until overall matrix end sentinel (-1000)
+ROW_LOOP:
+    ; Debug: Print current row pointer.
+    MOV     EAX, offsetTempMatrixLoc
+    CALL    WRITEINT
+    CALL    CRLF
+
+    ; Load first element of the current row.
+    MOV     EAX, offsetTempMatrixLoc    ; EAX = pointer stored in offsetTempMatrixLoc
+    MOV     EAX, [EAX]                  ; Load the first element at that pointer
+    CMP     EAX, -1000                  ; Compare to overall matrix end sentinel (-1000)
+    JE      END_WRITE_TEMPS_REVERSE     ; If equal, we're done
+
+    ;--------------------------------------------------
+    ; Count the number of valid elements in the current row.
+    MOV     colIndex, 0               ; Initialize the column counter
+    ; Debug: Print pointer used for row counting.
+    MOV     EAX, offsetTempMatrixLoc
+    CALL    WRITEINT
+    CALL    CRLF
+
+    ; Set ESI to the start pointer of the current row.
+    MOV     ESI, offsetTempMatrixLoc
+
+ROW_COUNT_LOOP:
+    LODSD                           ; Load DWORD from [ESI] into EAX; ESI = ESI + 4
+    ; Debug: Print each element read in the row count loop.
+    MOV     EDX, EAX                ; Copy current element for debug print
+    CALL    WRITEINT
+    CALL    CRLF
+    CMP     EAX, -999               ; Check if row-end sentinel (-999) is reached
+    JE      END_ROW_COUNT_LOOP      ; If so, exit the counting loop
+    INC     colIndex                ; Increment the column counter for each valid element
+    JMP     ROW_COUNT_LOOP          ; Continue scanning the row
+
+END_ROW_COUNT_LOOP:
+    ; Debug: Print the number of valid elements (colIndex).
+    MOV     EAX, colIndex
+    CALL    WRITEINT
+    CALL    CRLF
+
+    ;--------------------------------------------------
+    ; Compute the pointer to the last valid element in the row.
+    ; Formula: lastElementPtr = rowStart + (colIndex * 4 - 4)
+    MOV     EAX, colIndex           ; EAX = number of valid elements
+    IMUL    EAX, 4                  ; Multiply by 4 (size of a DWORD)
+    SUB     EAX, 4                  ; Adjust to point to the last element offset
+    MOV     EBX, offsetTempMatrixLoc  ; EBX = starting pointer of the row
+    ADD     EAX, EBX                ; EAX now points to the last valid element
+    MOV     lastElementPtr, EAX     ; Save pointer in lastElementPtr
+    ; Debug: Print computed lastElementPtr.
+    MOV     EAX, lastElementPtr
+    CALL    WRITEINT
+    CALL    CRLF
+
+    ; Copy the count to rowIndex for reverse printing.
+    MOV     EAX, colIndex
+    MOV     rowIndex, EAX
+    ; Debug: Print rowIndex.
+    MOV     EAX, rowIndex
+    CALL    WRITEINT
+    CALL    CRLF
+
+    ;--------------------------------------------------
+    ; Print the current row in reverse order.
+PRINT_REVERSE_LOOP:
+    CMP     rowIndex, 0             ; Check if all elements have been printed
+    JE      END_PRINT_REVERSE_LOOP  ; If yes, exit the loop
+
+    ; Load the current element from lastElementPtr.
+    MOV     EAX, [lastElementPtr]
+    MOV     crntTemp, EAX           ; Store the element in crntTemp
+    ; Debug: Print the element to be printed in reverse.
+    MOV     EAX, crntTemp
+    CALL    WRITEINT
+    CALL    CRLF
+
+    ; Print the delimiter immediately after the element.
+    MOV     AL, DELIMITER           ; Load the global delimiter (',') into AL
+    CALL    WRITECHAR               ; Print the delimiter (no spaces)
+
+    DEC     rowIndex                ; Decrement the counter
+    SUB     lastElementPtr, 4       ; Move pointer to the previous element (4 bytes)
+    JMP     PRINT_REVERSE_LOOP      ; Loop for the next element
+
+END_PRINT_REVERSE_LOOP:
+    ;--------------------------------------------------
+    ; End of row: Print a newline.
+    CALL    CRLF
+    ; Debug: Finished printing current row.
+
+    ;--------------------------------------------------
+    ; Update pointer to the next row.
+    ; ESI now points just past the row-end sentinel (-999) after the count loop.
+    MOV     offsetTempMatrixLoc, ESI   ; Store the updated pointer into our local variable
+    ; Debug: Print updated pointer.
+    MOV     EAX, offsetTempMatrixLoc
+    CALL    WRITEINT
+    CALL    CRLF
+
+    JMP     ROW_LOOP                ; Process the next row
+
+    ;--------------------------------------------------
+    ; Epilogue: Restore registers and return.
+END_WRITE_TEMPS_REVERSE:
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    RET     4
+WriteTempsReverse ENDP
+
 
 
 

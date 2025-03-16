@@ -1,4 +1,4 @@
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 18:56:14
 *Temp List Reverser     (Proj6_pereze4.asm		     Page 1 - 1
 
 
@@ -17,7 +17,8 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 				;                           LODSB is utlized to convert a Temp reading from str to int format
 				; Implementation note 2:    Can accept Temp readings with prefix '+' or '-', and/or a leading zero
 				; Implementation note 3:    Program dynamically determines the number of columns of the character delimited file. It doesnt utilize TEMPS_PER_DAY
-				; Limitation:               Maximum of about 150 Temperature readings and 50 rows     
+				; Limitation:               Maximum of about 150 Temperature readings and 50 rows
+				; Limitation:               Can not handle an empty line  
 
 				INCLUDE Irvine32.inc
 			      C ; Include file for Irvine32.lib             (Irvine32.inc)
@@ -227,8 +228,8 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 
 
 
- 0000063F  00000190 [		arr_TempMatrix                  DWORD   400 DUP(1)
-	    00000001
+ 0000063F  00000190 [		arr_TempMatrix                  DWORD   400 DUP(-1000)
+	    FFFFFC18
 	   ]
 
 
@@ -340,19 +341,197 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 				    ;=================================
  00000044  68 0000063F R	    PUSH    OFFSET  arr_TempMatrix
  00000049  68 000000A4 R	    PUSH    OFFSET  file_TempReadings
- 0000004E  E8 00000011		    CALL    ParseTempsFromString
+ 0000004E  E8 00000112		    CALL    ParseTempsFromString
 
 
+				    ;=================================
 				    ; Close File
- 00000053  A1 00000000 R	    MOV     EAX, fileHandle               ; Load file handle
- 00000058  E8 00000000 E	    CALL    CloseFile                      ; Close the file
+ 00000053  A1 00000000 R	    MOV     EAX, fileHandle 
+ 00000058  E8 00000000 E	    CALL    CloseFile
+
+				    ;=================================
+ 0000005D  68 0000063F R	    PUSH    OFFSET  arr_TempMatrix
+ 00000062  E8 00000007		    CALL    WriteTempsReverse
+
+
+
 
 
 
 					Invoke ExitProcess,0	; exit to operating system
- 0000005D  6A 00	   *	    push   +000000000h
- 0000005F  E8 00000000 E   *	    call   ExitProcess
- 00000064			main ENDP
+ 00000067  6A 00	   *	    push   +000000000h
+ 00000069  E8 00000000 E   *	    call   ExitProcess
+ 0000006E			main ENDP
+
+
+
+				;---------------------------------------------------------------
+				; Procedure: WriteTempsReverse
+				; Function:    Receives an OFFSET to a 2D matrix.
+				;              For each row (each row ends with -999; the entire matrix
+				;              ends with -1000), prints the row’s elements in reverse order.
+				;              After each element (including the last), prints the delimiter
+				;              defined as the global constant DELIMITER.
+				;              Debug printouts are included to verify correct parameter passing.
+				;
+				; Local Variables:
+				;   crntTemp              - Holds the current matrix element (signed integer)
+				;   rowIndex              - Reverse printing counter for the current row
+				;   colIndex              - Number of valid elements in the current row
+				;   offsetTempMatrixLoc   - Holds the pointer to the current location in the matrix
+				;   lastElementPtr        - Holds the pointer to the last valid element in the row
+				;
+				; Must use at least one of these: STOSD, LODSD, MOVSD, CMPSD, SCASD.
+				; In this code, LODSD is used to load the next element while counting columns.
+				;---------------------------------------------------------------
+
+
+ 0000006E			WriteTempsReverse PROC
+
+				    ; Allocate local variables on the stack:
+				    LOCAL   crntTemp:DWORD              ; Current temperature value from matrix element
+				    LOCAL   rowIndex:DWORD              ; Reverse printing counter for the current row
+				    LOCAL   colIndex:DWORD              ; Number of valid elements in the current row
+				    LOCAL   offsetTempMatrixLoc:DWORD   ; Holds the pointer to the current row in the matrix
+				    LOCAL   lastElementPtr:DWORD        ; Pointer to last valid element in the row
+
+ 0000006E  55		   *	    push   ebp
+ 0000006F  8B EC	   *	    mov    ebp, esp
+ 00000071  83 C4 EC	   *	    add    esp, 0FFFFFFECh
+ 00000074  50			    PUSH    EAX
+ 00000075  53			    PUSH    EBX
+ 00000076  51			    PUSH    ECX
+ 00000077  52			    PUSH    EDX
+ 00000078  56			    PUSH    ESI
+ 00000079  57			    PUSH    EDI
+
+				    ;--------------------------------------------------
+				    ; Debug: Verify parameter is passed correctly.
+				    ; The parameter (offset_Arr_TempMatrix) is located at [EBP+8].
+ 0000007A  8B 45 08		    MOV     EAX, [EBP+8]                ; Load the procedure parameter (pointer to matrix)
+ 0000007D  89 45 F0		    MOV     offsetTempMatrixLoc, EAX    ; Store it into our local variable
+				    ; Debug Print: Show stored pointer value.
+ 00000080  8B 45 F0		    MOV     EAX, offsetTempMatrixLoc    ; (no extra brackets!)
+ 00000083  E8 00000000 E	    CALL    WRITEINT                    ; Should print the matrix base address
+ 00000088  E8 00000000 E	    CALL    CRLF
+
+				    ;--------------------------------------------------
+				    ; Outer Loop: Process each row until overall matrix end sentinel (-1000)
+ 0000008D			ROW_LOOP:
+				    ; Debug: Print current row pointer.
+ 0000008D  8B 45 F0		    MOV     EAX, offsetTempMatrixLoc
+ 00000090  E8 00000000 E	    CALL    WRITEINT
+ 00000095  E8 00000000 E	    CALL    CRLF
+
+				    ; Load first element of the current row.
+ 0000009A  8B 45 F0		    MOV     EAX, offsetTempMatrixLoc    ; EAX = pointer stored in offsetTempMatrixLoc
+ 0000009D  8B 00		    MOV     EAX, [EAX]                  ; Load the first element at that pointer
+ 0000009F  3D FFFFFC18		    CMP     EAX, -1000                  ; Compare to overall matrix end sentinel (-1000)
+ 000000A4  0F 84 000000B1	    JE      END_WRITE_TEMPS_REVERSE     ; If equal, we're done
+
+				    ;--------------------------------------------------
+				    ; Count the number of valid elements in the current row.
+ 000000AA  C7 45 F4		    MOV     colIndex, 0               ; Initialize the column counter
+	   00000000
+				    ; Debug: Print pointer used for row counting.
+ 000000B1  8B 45 F0		    MOV     EAX, offsetTempMatrixLoc
+ 000000B4  E8 00000000 E	    CALL    WRITEINT
+ 000000B9  E8 00000000 E	    CALL    CRLF
+
+				    ; Set ESI to the start pointer of the current row.
+ 000000BE  8B 75 F0		    MOV     ESI, offsetTempMatrixLoc
+
+ 000000C1			ROW_COUNT_LOOP:
+ 000000C1  AD			    LODSD                           ; Load DWORD from [ESI] into EAX; ESI = ESI + 4
+				    ; Debug: Print each element read in the row count loop.
+ 000000C2  8B D0		    MOV     EDX, EAX                ; Copy current element for debug print
+ 000000C4  E8 00000000 E	    CALL    WRITEINT
+ 000000C9  E8 00000000 E	    CALL    CRLF
+ 000000CE  3D FFFFFC19		    CMP     EAX, -999               ; Check if row-end sentinel (-999) is reached
+ 000000D3  74 05		    JE      END_ROW_COUNT_LOOP      ; If so, exit the counting loop
+ 000000D5  FF 45 F4		    INC     colIndex                ; Increment the column counter for each valid element
+ 000000D8  EB E7		    JMP     ROW_COUNT_LOOP          ; Continue scanning the row
+
+ 000000DA			END_ROW_COUNT_LOOP:
+				    ; Debug: Print the number of valid elements (colIndex).
+ 000000DA  8B 45 F4		    MOV     EAX, colIndex
+ 000000DD  E8 00000000 E	    CALL    WRITEINT
+ 000000E2  E8 00000000 E	    CALL    CRLF
+
+				    ;--------------------------------------------------
+				    ; Compute the pointer to the last valid element in the row.
+				    ; Formula: lastElementPtr = rowStart + (colIndex * 4 - 4)
+ 000000E7  8B 45 F4		    MOV     EAX, colIndex           ; EAX = number of valid elements
+ 000000EA  6B C0 04		    IMUL    EAX, 4                  ; Multiply by 4 (size of a DWORD)
+ 000000ED  83 E8 04		    SUB     EAX, 4                  ; Adjust to point to the last element offset
+ 000000F0  8B 5D F0		    MOV     EBX, offsetTempMatrixLoc  ; EBX = starting pointer of the row
+ 000000F3  03 C3		    ADD     EAX, EBX                ; EAX now points to the last valid element
+ 000000F5  89 45 EC		    MOV     lastElementPtr, EAX     ; Save pointer in lastElementPtr
+				    ; Debug: Print computed lastElementPtr.
+ 000000F8  8B 45 EC		    MOV     EAX, lastElementPtr
+ 000000FB  E8 00000000 E	    CALL    WRITEINT
+ 00000100  E8 00000000 E	    CALL    CRLF
+
+				    ; Copy the count to rowIndex for reverse printing.
+ 00000105  8B 45 F4		    MOV     EAX, colIndex
+ 00000108  89 45 F8		    MOV     rowIndex, EAX
+				    ; Debug: Print rowIndex.
+ 0000010B  8B 45 F8		    MOV     EAX, rowIndex
+ 0000010E  E8 00000000 E	    CALL    WRITEINT
+ 00000113  E8 00000000 E	    CALL    CRLF
+
+				    ;--------------------------------------------------
+				    ; Print the current row in reverse order.
+ 00000118			PRINT_REVERSE_LOOP:
+ 00000118  83 7D F8 00		    CMP     rowIndex, 0             ; Check if all elements have been printed
+ 0000011C  74 23		    JE      END_PRINT_REVERSE_LOOP  ; If yes, exit the loop
+
+				    ; Load the current element from lastElementPtr.
+ 0000011E  8B 45 EC		    MOV     EAX, [lastElementPtr]
+ 00000121  89 45 FC		    MOV     crntTemp, EAX           ; Store the element in crntTemp
+				    ; Debug: Print the element to be printed in reverse.
+ 00000124  8B 45 FC		    MOV     EAX, crntTemp
+ 00000127  E8 00000000 E	    CALL    WRITEINT
+ 0000012C  E8 00000000 E	    CALL    CRLF
+
+				    ; Print the delimiter immediately after the element.
+ 00000131  B0 2C		    MOV     AL, DELIMITER           ; Load the global delimiter (',') into AL
+ 00000133  E8 00000000 E	    CALL    WRITECHAR               ; Print the delimiter (no spaces)
+
+ 00000138  FF 4D F8		    DEC     rowIndex                ; Decrement the counter
+ 0000013B  83 6D EC 04		    SUB     lastElementPtr, 4       ; Move pointer to the previous element (4 bytes)
+ 0000013F  EB D7		    JMP     PRINT_REVERSE_LOOP      ; Loop for the next element
+
+ 00000141			END_PRINT_REVERSE_LOOP:
+				    ;--------------------------------------------------
+				    ; End of row: Print a newline.
+ 00000141  E8 00000000 E	    CALL    CRLF
+				    ; Debug: Finished printing current row.
+
+				    ;--------------------------------------------------
+				    ; Update pointer to the next row.
+				    ; ESI now points just past the row-end sentinel (-999) after the count loop.
+ 00000146  89 75 F0		    MOV     offsetTempMatrixLoc, ESI   ; Store the updated pointer into our local variable
+				    ; Debug: Print updated pointer.
+ 00000149  8B 45 F0		    MOV     EAX, offsetTempMatrixLoc
+ 0000014C  E8 00000000 E	    CALL    WRITEINT
+ 00000151  E8 00000000 E	    CALL    CRLF
+
+ 00000156  E9 FFFFFF32		    JMP     ROW_LOOP                ; Process the next row
+
+				    ;--------------------------------------------------
+				    ; Epilogue: Restore registers and return.
+ 0000015B			END_WRITE_TEMPS_REVERSE:
+ 0000015B  5F			    POP     EDI
+ 0000015C  5E			    POP     ESI
+ 0000015D  5A			    POP     EDX
+ 0000015E  59			    POP     ECX
+ 0000015F  5B			    POP     EBX
+ 00000160  58			    POP     EAX
+ 00000161  C9		   *	    leave  
+ 00000162  C2 0004		    RET     4
+ 00000165			WriteTempsReverse ENDP
+
 
 
 
@@ -364,18 +543,18 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 				; postconditions: values saved in array
 				; registers changed: none
 				; ==========================================================================================================================
- 00000064			ParseTempsFromString PROC
+ 00000165			ParseTempsFromString PROC
 				    LOCAL   str_CrntTemp[5]:BYTE, int_Len_Str_CrntTemp:DWORD, int_Sign:DWORD, int_RowIndex:DWORD, int_ColIndex:DWORD, int_CrntTemp:DWORD, int_PrevDlmterPos:DWORD, int_CrntDlmterPos:DWORD, offset_File_TempReadings:DWORD, int_LenMatrix:DWORD, int_WidthMatrix:DWORD
 
- 00000064  55		   *	    push   ebp
- 00000065  8B EC	   *	    mov    ebp, esp
- 00000067  83 C4 D0	   *	    add    esp, 0FFFFFFD0h
- 0000006A  50			    PUSH	EAX
- 0000006B  53			    PUSH	EBX
- 0000006C  51			    PUSH	ECX
- 0000006D  52			    PUSH	EDX
- 0000006E  56			    PUSH	ESI
- 0000006F  57			    PUSH	EDI
+ 00000165  55		   *	    push   ebp
+ 00000166  8B EC	   *	    mov    ebp, esp
+ 00000168  83 C4 D0	   *	    add    esp, 0FFFFFFD0h
+ 0000016B  50			    PUSH	EAX
+ 0000016C  53			    PUSH	EBX
+ 0000016D  51			    PUSH	ECX
+ 0000016E  52			    PUSH	EDX
+ 0000016F  56			    PUSH	ESI
+ 00000170  57			    PUSH	EDI
 
 
 				    ; Stack Layout:
@@ -385,8 +564,8 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 				    ; [EBP] = old ebp
 
 				    ; move parameter to local variable
- 00000070  8B 45 08		    MOV     EAX, [EBP + 8]
- 00000073  89 45 D8		    MOV     offset_File_TempReadings, EAX
+ 00000171  8B 45 08		    MOV     EAX, [EBP + 8]
+ 00000174  89 45 D8		    MOV     offset_File_TempReadings, EAX
 
 
 
@@ -395,134 +574,134 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 
 				    ;==================================================================
 				    ; Get File Size
- 00000076  8D 45 D0		    LEA     EAX, int_WidthMatrix
- 00000079  50			    PUSH    EAX
- 0000007A  8D 45 D4		    LEA     EAX, int_LenMatrix
- 0000007D  50			    PUSH    EAX
- 0000007E  FF 75 D8		    PUSH    offset_File_TempReadings
- 00000081  E8 000003FC		    CALL    Get_MatrixSize
+ 00000177  8D 45 D0		    LEA     EAX, int_WidthMatrix
+ 0000017A  50			    PUSH    EAX
+ 0000017B  8D 45 D4		    LEA     EAX, int_LenMatrix
+ 0000017E  50			    PUSH    EAX
+ 0000017F  FF 75 D8		    PUSH    offset_File_TempReadings
+ 00000182  E8 000003FC		    CALL    Get_MatrixSize
 
- 00000086  E8 00000000 E	    CALL    CrLf
- 0000008B  BA 00000498 R	    MOV     EDX, OFFSET str_MsgNumberofRows
- 00000090  E8 00000000 E	    CALL    WriteString
- 00000095  8B 45 D4		    MOV     EAX, int_LenMatrix
- 00000098  E8 00000000 E	    CALL    WriteDec
+ 00000187  E8 00000000 E	    CALL    CrLf
+ 0000018C  BA 00000498 R	    MOV     EDX, OFFSET str_MsgNumberofRows
+ 00000191  E8 00000000 E	    CALL    WriteString
+ 00000196  8B 45 D4		    MOV     EAX, int_LenMatrix
+ 00000199  E8 00000000 E	    CALL    WriteDec
 
- 0000009D  E8 00000000 E	    CALL    CrLf
- 000000A2  BA 000004AD R	    MOV     EDX, OFFSET str_MsgNumberofColumns
- 000000A7  E8 00000000 E	    CALL    WriteString
- 000000AC  8B 45 D0		    MOV     EAX, int_WidthMatrix
- 000000AF  E8 00000000 E	    CALL    WriteDec
+ 0000019E  E8 00000000 E	    CALL    CrLf
+ 000001A3  BA 000004AD R	    MOV     EDX, OFFSET str_MsgNumberofColumns
+ 000001A8  E8 00000000 E	    CALL    WriteString
+ 000001AD  8B 45 D0		    MOV     EAX, int_WidthMatrix
+ 000001B0  E8 00000000 E	    CALL    WriteDec
 
 				    ;==================================================================
 				    ; Initialize outer loop (rows)
- 000000B4  B8 00000000		    MOV     EAX, 0
- 000000B9  89 45 EC		    MOV     int_RowIndex, EAX
- 000000BC  B8 FFFFFFFF		    MOV     EAX, -1
- 000000C1  89 45 E0		    MOV     int_PrevDlmterPos, EAX
+ 000001B5  B8 00000000		    MOV     EAX, 0
+ 000001BA  89 45 EC		    MOV     int_RowIndex, EAX
+ 000001BD  B8 FFFFFFFF		    MOV     EAX, -1
+ 000001C2  89 45 E0		    MOV     int_PrevDlmterPos, EAX
 
 
 				    ; Start outer loop (rows)
- 000000C4			    _Loop_Rows:
+ 000001C5			    _Loop_Rows:
 				        ; Initialize inner loop (columns)
- 000000C4  B8 00000000		        MOV     EAX, 0
- 000000C9  89 45 E8		        MOV     int_ColIndex, EAX
+ 000001C5  B8 00000000		        MOV     EAX, 0
+ 000001CA  89 45 E8		        MOV     int_ColIndex, EAX
 
 
 				        ; Start inner loop (columns)
- 000000CC			        _Loop_Columns:
+ 000001CD			        _Loop_Columns:
 
 
 
 				            ;==================================================================
 				            ; Get current delimiter position
 				    
- 000000CC  FF 75 D8		            PUSH    offset_File_TempReadings
- 000000CF  8D 45 DC		            LEA     EAX, int_CrntDlmterPos
- 000000D2  50			            PUSH    EAX
+ 000001CD  FF 75 D8		            PUSH    offset_File_TempReadings
+ 000001D0  8D 45 DC		            LEA     EAX, int_CrntDlmterPos
+ 000001D3  50			            PUSH    EAX
 				            ;MOV     EAX, -1                            ; Used for modular testing
 				            ;MOV     int_PrevDlmterPos, EAX             ; Used for modular testing
- 000000D3  FF 75 E0		            PUSH    int_PrevDlmterPos
- 000000D6  E8 00000335		            CALL    Get_NextDlmtrPos
+ 000001D4  FF 75 E0		            PUSH    int_PrevDlmterPos
+ 000001D7  E8 00000335		            CALL    Get_NextDlmtrPos
 				            ;!!!!! After current line is done, in the loop, need to add 2 to int_PrevDlmterPos to compensate for CrLf
 
 				   
 				           ;==================================================================
 				           ; Get an iteration of Temp reading, save as string
- 000000DB  8B 45 D8		           MOV      EAX, offset_File_TempReadings
- 000000DE  50			           PUSH     EAX
- 000000DF  8D 45 FB		           LEA      EAX, str_CrntTemp
- 000000E2  50			           PUSH     EAX
- 000000E3  8B 45 E0		           MOV      EAX, int_PrevDlmterPos
- 000000E6  50			           PUSH     EAX
- 000000E7  8B 45 DC		           MOV      EAX, int_CrntDlmterPos
- 000000EA  50			           PUSH     EAX
- 000000EB  E8 00000286		           CALL     Extract_StrCrntTemp
- 000000F0  BA 0000051A R	           MOV      EDX, OFFSET str_MsgCurrentTempIteration
- 000000F5  E8 00000000 E	           CALL     CrLf
- 000000FA  E8 00000000 E	           CALL     WriteString
- 000000FF  8D 55 FB		           LEA      EDX, str_CrntTemp
- 00000102  E8 00000000 E	           CALL     WriteString
+ 000001DC  8B 45 D8		           MOV      EAX, offset_File_TempReadings
+ 000001DF  50			           PUSH     EAX
+ 000001E0  8D 45 FB		           LEA      EAX, str_CrntTemp
+ 000001E3  50			           PUSH     EAX
+ 000001E4  8B 45 E0		           MOV      EAX, int_PrevDlmterPos
+ 000001E7  50			           PUSH     EAX
+ 000001E8  8B 45 DC		           MOV      EAX, int_CrntDlmterPos
+ 000001EB  50			           PUSH     EAX
+ 000001EC  E8 00000286		           CALL     Extract_StrCrntTemp
+ 000001F1  BA 0000051A R	           MOV      EDX, OFFSET str_MsgCurrentTempIteration
+ 000001F6  E8 00000000 E	           CALL     CrLf
+ 000001FB  E8 00000000 E	           CALL     WriteString
+ 00000200  8D 55 FB		           LEA      EDX, str_CrntTemp
+ 00000203  E8 00000000 E	           CALL     WriteString
 
 
 				           ;==================================================================
 				           ; Detect the sign, store this info then removes the sign from the string
- 00000107  8D 45 F0		            LEA      EAX, int_Sign
- 0000010A  50			            PUSH     EAX
- 0000010B  8D 45 FB		            LEA      EAX, str_CrntTemp
- 0000010E  50			            PUSH     EAX
- 0000010F  E8 000001F0		            CALL     GetSign
+ 00000208  8D 45 F0		            LEA      EAX, int_Sign
+ 0000020B  50			            PUSH     EAX
+ 0000020C  8D 45 FB		            LEA      EAX, str_CrntTemp
+ 0000020F  50			            PUSH     EAX
+ 00000210  E8 000001F0		            CALL     GetSign
 				            ; Debug Print
- 00000114  E8 00000000 E	            CALL    CrLf
- 00000119  BA 00000546 R	            MOV     EDX, OFFSET str_MsgSign
- 0000011E  E8 00000000 E	            CALL    WriteString
- 00000123  8B 45 F0		            MOV     EAX, int_Sign
- 00000126  E8 00000000 E	            CALL    WriteDec
- 0000012B  E8 00000000 E	            CALL    CrLf     
- 00000130  BA 00000582 R	            MOV     EDX, OFFSET str_MsgSignRemoved
- 00000135  E8 00000000 E	            CALL    WriteString
- 0000013A  8D 55 FB		            LEA     EDX, str_CrntTemp
- 0000013D  E8 00000000 E	            CALL    WriteString
- 00000142  E8 00000000 E	            CALL    CrLf
+ 00000215  E8 00000000 E	            CALL    CrLf
+ 0000021A  BA 00000546 R	            MOV     EDX, OFFSET str_MsgSign
+ 0000021F  E8 00000000 E	            CALL    WriteString
+ 00000224  8B 45 F0		            MOV     EAX, int_Sign
+ 00000227  E8 00000000 E	            CALL    WriteDec
+ 0000022C  E8 00000000 E	            CALL    CrLf     
+ 00000231  BA 00000582 R	            MOV     EDX, OFFSET str_MsgSignRemoved
+ 00000236  E8 00000000 E	            CALL    WriteString
+ 0000023B  8D 55 FB		            LEA     EDX, str_CrntTemp
+ 0000023E  E8 00000000 E	            CALL    WriteString
+ 00000243  E8 00000000 E	            CALL    CrLf
 
 
 				    
 				           ;==================================================================
 				           ; Convert current Temp Reading to Integer
 
- 00000147  8D 45 E4		            LEA     EAX, int_CrntTemp
- 0000014A  50			            PUSH    EAX
- 0000014B  8D 45 FB		            LEA     EAX, str_CrntTemp
- 0000014E  50			            PUSH    EAX
- 0000014F  E8 0000014C		            CALL    ConvertStringToInteger
+ 00000248  8D 45 E4		            LEA     EAX, int_CrntTemp
+ 0000024B  50			            PUSH    EAX
+ 0000024C  8D 45 FB		            LEA     EAX, str_CrntTemp
+ 0000024F  50			            PUSH    EAX
+ 00000250  E8 0000014C		            CALL    ConvertStringToInteger
 				            ; Debugging printouts
- 00000154  E8 00000000 E	            CALL    CrLf
- 00000159  BA 000005C3 R	            MOV     EDX, OFFSET str_MsgConvertedInt
- 0000015E  E8 00000000 E	            CALL    WriteString
- 00000163  8B 45 E4		            MOV     EAX, int_CrntTemp
- 00000166  E8 00000000 E	            CALL    WriteInt
+ 00000255  E8 00000000 E	            CALL    CrLf
+ 0000025A  BA 000005C3 R	            MOV     EDX, OFFSET str_MsgConvertedInt
+ 0000025F  E8 00000000 E	            CALL    WriteString
+ 00000264  8B 45 E4		            MOV     EAX, int_CrntTemp
+ 00000267  E8 00000000 E	            CALL    WriteInt
 
 
 				           ;==================================================================
 				           ; Check if reference sign bit is set. 
 				           ; If yes, negate the  stored integer Temp reading
 				    
- 0000016B  8B 45 F0		            MOV     EAX, int_Sign
- 0000016E  83 F8 01		            CMP     EAX, 1
- 00000171  75 09		            JNE     _Save_ToTempMatrix
- 00000173  8D 45 E4		            LEA     EAX, int_CrntTemp
- 00000176  50			            PUSH    EAX
- 00000177  E8 00000101		            CALL    Negate_CurntTemp
+ 0000026C  8B 45 F0		            MOV     EAX, int_Sign
+ 0000026F  83 F8 01		            CMP     EAX, 1
+ 00000272  75 09		            JNE     _Save_ToTempMatrix
+ 00000274  8D 45 E4		            LEA     EAX, int_CrntTemp
+ 00000277  50			            PUSH    EAX
+ 00000278  E8 00000101		            CALL    Negate_CurntTemp
 
 
- 0000017C			            _Save_ToTempMatrix:
+ 0000027D			            _Save_ToTempMatrix:
 				                ; Debugging printouts
- 0000017C  E8 00000000 E	                CALL    CrLf
- 00000181  BA 000005E1 R	                MOV     EDX, OFFSET str_MsgAfterSignCheck
- 00000186  E8 00000000 E	                CALL    WriteString
- 0000018B  8B 45 E4		                MOV     EAX, int_CrntTemp
- 0000018E  E8 00000000 E	                CALL    WriteInt
- 00000193  E8 00000000 E	                CALL    CrLf
+ 0000027D  E8 00000000 E	                CALL    CrLf
+ 00000282  BA 000005E1 R	                MOV     EDX, OFFSET str_MsgAfterSignCheck
+ 00000287  E8 00000000 E	                CALL    WriteString
+ 0000028C  8B 45 E4		                MOV     EAX, int_CrntTemp
+ 0000028F  E8 00000000 E	                CALL    WriteInt
+ 00000294  E8 00000000 E	                CALL    CrLf
 
 				   
 				               ;==================================================================
@@ -542,52 +721,52 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 				                ;MOV     int_RowIndex, EAX              ; for modular testing only
 				                ;MOV     EAX, 0                         ; for modular testing only
 				                ;MOV     int_ColIndex, EAX              ; for modular testing only
- 00000198  FF 75 D0		                PUSH    int_WidthMatrix
- 0000019B  8B 45 0C		                MOV     EAX, [EBP + 12]                 ; PUSH OFFSET arr_TempMatrix
- 0000019E  50			                PUSH    EAX 
- 0000019F  FF 75 E8		                PUSH    int_ColIndex
- 000001A2  FF 75 EC		                PUSH    int_RowIndex
- 000001A5  FF 75 E4		                PUSH    int_CrntTemp
- 000001A8  E8 00000074		                CALL    Save_CrntTemp_ToMatrix
+ 00000299  FF 75 D0		                PUSH    int_WidthMatrix
+ 0000029C  8B 45 0C		                MOV     EAX, [EBP + 12]                 ; PUSH OFFSET arr_TempMatrix
+ 0000029F  50			                PUSH    EAX 
+ 000002A0  FF 75 E8		                PUSH    int_ColIndex
+ 000002A3  FF 75 EC		                PUSH    int_RowIndex
+ 000002A6  FF 75 E4		                PUSH    int_CrntTemp
+ 000002A9  E8 00000074		                CALL    Save_CrntTemp_ToMatrix
 
 
 				            ; Check if Inner Loop is done
 
 
- 000001AD  8B 45 E8		            MOV     EAX, int_ColIndex
- 000001B0  40			            INC     EAX
- 000001B1  89 45 E8		            MOV     int_ColIndex, EAX
- 000001B4  3B 45 D0		            CMP     EAX, int_WidthMatrix
- 000001B7  73 0B		            JAE      _End_LoopColumns
+ 000002AE  8B 45 E8		            MOV     EAX, int_ColIndex
+ 000002B1  40			            INC     EAX
+ 000002B2  89 45 E8		            MOV     int_ColIndex, EAX
+ 000002B5  3B 45 D0		            CMP     EAX, int_WidthMatrix
+ 000002B8  73 0B		            JAE      _End_LoopColumns
 
 				           
 
 
 				            ; Preapare for next inner loop iteration
- 000001B9  8B 45 DC		            MOV     EAX, int_CrntDlmterPos
- 000001BC  89 45 E0		            MOV     int_PrevDlmterPos, EAX
- 000001BF  E9 FFFFFF08		            JMP     _Loop_Columns
+ 000002BA  8B 45 DC		            MOV     EAX, int_CrntDlmterPos
+ 000002BD  89 45 E0		            MOV     int_PrevDlmterPos, EAX
+ 000002C0  E9 FFFFFF08		            JMP     _Loop_Columns
 
 
 
 				            ; End inner loop
- 000001C4			            _End_LoopColumns:
+ 000002C5			            _End_LoopColumns:
 				            ; Save_SentinelValue:
- 000001C4  FF 75 D0		            PUSH    int_WidthMatrix
- 000001C7  8B 45 0C		            MOV     EAX, [EBP + 12]                 ; PUSH OFFSET arr_TempMatrix
- 000001CA  50			            PUSH    EAX 
- 000001CB  FF 75 E8		            PUSH    int_ColIndex
- 000001CE  FF 75 EC		            PUSH    int_RowIndex
- 000001D1  B8 FFFFFC19		            MOV     EAX, -999
- 000001D6  50			            PUSH    EAX
- 000001D7  E8 00000045		            CALL    Save_CrntTemp_ToMatrix
+ 000002C5  FF 75 D0		            PUSH    int_WidthMatrix
+ 000002C8  8B 45 0C		            MOV     EAX, [EBP + 12]                 ; PUSH OFFSET arr_TempMatrix
+ 000002CB  50			            PUSH    EAX 
+ 000002CC  FF 75 E8		            PUSH    int_ColIndex
+ 000002CF  FF 75 EC		            PUSH    int_RowIndex
+ 000002D2  B8 FFFFFC19		            MOV     EAX, -999
+ 000002D7  50			            PUSH    EAX
+ 000002D8  E8 00000045		            CALL    Save_CrntTemp_ToMatrix
 
 
- 000001DC  8B 45 DC		            MOV     EAX, int_CrntDlmterPos
- 000001DF  89 45 E0		            MOV     int_PrevDlmterPos, EAX
- 000001E2  8B 45 E0		            MOV     EAX, int_PrevDlmterPos
- 000001E5  83 C0 02		            ADD     EAX, 2
- 000001E8  89 45 E0		            MOV     int_PrevDlmterPos, EAX
+ 000002DD  8B 45 DC		            MOV     EAX, int_CrntDlmterPos
+ 000002E0  89 45 E0		            MOV     int_PrevDlmterPos, EAX
+ 000002E3  8B 45 E0		            MOV     EAX, int_PrevDlmterPos
+ 000002E6  83 C0 02		            ADD     EAX, 2
+ 000002E9  89 45 E0		            MOV     int_PrevDlmterPos, EAX
 
 
 				            
@@ -595,46 +774,46 @@ Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
 				        
 
 
- 000001EB  8B 45 EC		        MOV     EAX, int_RowIndex
- 000001EE  40			        INC     EAX
- 000001EF  89 45 EC		        MOV     int_RowIndex, EAX
- 000001F2  3B 45 D4		        CMP     EAX, int_LenMatrix
- 000001F5  73 05		        JAE      _End_LoopRows
+ 000002EC  8B 45 EC		        MOV     EAX, int_RowIndex
+ 000002EF  40			        INC     EAX
+ 000002F0  89 45 EC		        MOV     int_RowIndex, EAX
+ 000002F3  3B 45 D4		        CMP     EAX, int_LenMatrix
+ 000002F6  73 05		        JAE      _End_LoopRows
 
 				        ; Prepare next Outer Loop iteration
- 000001F7  E9 FFFFFEC8		        JMP     _Loop_Rows
+ 000002F8  E9 FFFFFEC8		        JMP     _Loop_Rows
 
 				        ; End Outer Loop
- 000001FC			        _End_LoopRows:
+ 000002FD			        _End_LoopRows:
 
 
 				    ; ============================================
 				    ; Print All Elements of arr_TempMatrix
 
- 000001FC  8B 75 0C		    MOV     ESI, [EBP + 12]                 ; Move to ESI, array OFFSET
- 000001FF  B9 000000FA		    MOV     ECX, 250 ; Set loop counter (total elements)
+ 000002FD  8B 75 0C		    MOV     ESI, [EBP + 12]                 ; Move to ESI, array OFFSET
+ 00000300  B9 000000FA		    MOV     ECX, 250 ; Set loop counter (total elements)
 
- 00000204			    _PrintLoop:
- 00000204  8B 06		        MOV     EAX, [ESI]                  ; Load current array element
- 00000206  E8 00000000 E	        CALL    WriteInt                      ; Print number
- 0000020B  B0 20		        MOV     AL, ' '
- 0000020D  E8 00000000 E	        CALL    WriteChar                      ; Print space for separation
+ 00000305			    _PrintLoop:
+ 00000305  8B 06		        MOV     EAX, [ESI]                  ; Load current array element
+ 00000307  E8 00000000 E	        CALL    WriteInt                      ; Print number
+ 0000030C  B0 20		        MOV     AL, ' '
+ 0000030E  E8 00000000 E	        CALL    WriteChar                      ; Print space for separation
 
- 00000212  83 C6 04		        ADD     ESI, 4                          ; Move to next DWORD (4 bytes)
- 00000215  E2 ED		        LOOP    _PrintLoop                     ; Repeat until ECX = 0
+ 00000313  83 C6 04		        ADD     ESI, 4                          ; Move to next DWORD (4 bytes)
+ 00000316  E2 ED		        LOOP    _PrintLoop                     ; Repeat until ECX = 0
 
 				    ;   Cleanup then Finish Proc
- 00000217  5F			    POP	    EDI
- 00000218  5E			    POP 	ESI
- 00000219  5A			    POP	    EDX
- 0000021A  59			    POP	    ECX
- 0000021B  5B			    POP 	EBX
- 0000021C  58			    POP	    EAX
- 0000021D  C9		   *	    leave  
- 0000021E  C2 0008		    RET     8
+ 00000318  5F			    POP	    EDI
+ 00000319  5E			    POP 	ESI
+ 0000031A  5A			    POP	    EDX
+ 0000031B  59			    POP	    ECX
+ 0000031C  5B			    POP 	EBX
+ 0000031D  58			    POP	    EAX
+ 0000031E  C9		   *	    leave  
+ 0000031F  C2 0008		    RET     8
 
- 00000221			ParseTempsFromString ENDP
-Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not referenced : int_Len_Str_CrntTemp
+ 00000322			ParseTempsFromString ENDP
+Proj6_pereze4.asm(633) : warning A6004:procedure argument or local not referenced : int_Len_Str_CrntTemp
 
 				; ==========================================================================================================================
 				; Saves current Temp reading to array
@@ -645,7 +824,7 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				; registers changed: none
 				; ==========================================================================================================================
 
- 00000221			Save_CrntTemp_ToMatrix PROC
+ 00000322			Save_CrntTemp_ToMatrix PROC
 				    LOCAL crntTemp:DWORD
 				    LOCAL rowIndex:DWORD
 				    LOCAL colIndex:DWORD
@@ -655,15 +834,15 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				    LOCAL byteOffset:DWORD
 				    LOCAL destAddress:DWORD
 
- 00000221  55		   *	    push   ebp
- 00000222  8B EC	   *	    mov    ebp, esp
- 00000224  83 C4 E0	   *	    add    esp, 0FFFFFFE0h
- 00000227  50			    PUSH    EAX
- 00000228  53			    PUSH    EBX
- 00000229  51			    PUSH    ECX
- 0000022A  52			    PUSH    EDX
- 0000022B  56			    PUSH    ESI
- 0000022C  57			    PUSH    EDI
+ 00000322  55		   *	    push   ebp
+ 00000323  8B EC	   *	    mov    ebp, esp
+ 00000325  83 C4 E0	   *	    add    esp, 0FFFFFFE0h
+ 00000328  50			    PUSH    EAX
+ 00000329  53			    PUSH    EBX
+ 0000032A  51			    PUSH    ECX
+ 0000032B  52			    PUSH    EDX
+ 0000032C  56			    PUSH    ESI
+ 0000032D  57			    PUSH    EDI
 
 				    ;-------------------------------------------------------------------
 				    ; PARAMETER HANDLING:
@@ -674,21 +853,21 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				    ; [EBP+24] : int_WidthMatrix        - matrix width (number of columns).
 				    ;
 				    ; Save parameters into local variables.
- 0000022D  8B 45 08		    MOV     EAX, [EBP+8]
- 00000230  89 45 FC		    MOV     crntTemp, EAX
+ 0000032E  8B 45 08		    MOV     EAX, [EBP+8]
+ 00000331  89 45 FC		    MOV     crntTemp, EAX
 
- 00000233  8B 45 0C		    MOV     EAX, [EBP+12]
- 00000236  89 45 F8		    MOV     rowIndex, EAX
+ 00000334  8B 45 0C		    MOV     EAX, [EBP+12]
+ 00000337  89 45 F8		    MOV     rowIndex, EAX
 
- 00000239  8B 45 10		    MOV     EAX, [EBP+16]
- 0000023C  89 45 F4		    MOV     colIndex, EAX
+ 0000033A  8B 45 10		    MOV     EAX, [EBP+16]
+ 0000033D  89 45 F4		    MOV     colIndex, EAX
 
- 0000023F  8B 45 14		    MOV     EAX, [EBP+20]
- 00000242  89 45 F0		    MOV     offset_TempMatrixLoc, EAX
+ 00000340  8B 45 14		    MOV     EAX, [EBP+20]
+ 00000343  89 45 F0		    MOV     offset_TempMatrixLoc, EAX
 
- 00000245  8B 45 18		    MOV     EAX, [EBP+24]
- 00000248  40			    INC     EAX                                         ; To make space for sentinel value
- 00000249  89 45 EC		    MOV     intWidthMatrix, EAX
+ 00000346  8B 45 18		    MOV     EAX, [EBP+24]
+ 00000349  40			    INC     EAX                                         ; To make space for sentinel value
+ 0000034A  89 45 EC		    MOV     intWidthMatrix, EAX
 
 				    ;-------------------------------------------------------------------
 				    ; DEBUG PRINT: Print parameters.
@@ -720,20 +899,20 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				    ;-------------------------------------------------------------------
 				    ; COMPUTE ELEMENT OFFSET:
 				    ; elementIndex = rowIndex * intWidthMatrix + colIndex
- 0000024C  8B 45 F8		    MOV     EAX, rowIndex
- 0000024F  0F AF 45 EC		    IMUL    EAX, intWidthMatrix       ; EAX = rowIndex * intWidthMatrix
- 00000253  03 45 F4		    ADD     EAX, colIndex             ; EAX = element index
- 00000256  89 45 E8		    MOV     elementIndex, EAX
+ 0000034D  8B 45 F8		    MOV     EAX, rowIndex
+ 00000350  0F AF 45 EC		    IMUL    EAX, intWidthMatrix       ; EAX = rowIndex * intWidthMatrix
+ 00000354  03 45 F4		    ADD     EAX, colIndex             ; EAX = element index
+ 00000357  89 45 E8		    MOV     elementIndex, EAX
 
 				    ; Compute byteOffset = elementIndex * 4 (DWORD size)
- 00000259  8B 45 E8		    MOV     EAX, elementIndex
- 0000025C  C1 E0 02		    SHL     EAX, 2                    ; Multiply by 4.
- 0000025F  89 45 E4		    MOV     byteOffset, EAX
+ 0000035A  8B 45 E8		    MOV     EAX, elementIndex
+ 0000035D  C1 E0 02		    SHL     EAX, 2                    ; Multiply by 4.
+ 00000360  89 45 E4		    MOV     byteOffset, EAX
 
 				    ; Compute destination address = offset_TempMatrixLoc + byteOffset.
- 00000262  8B 45 F0		    MOV     EAX, offset_TempMatrixLoc
- 00000265  03 45 E4		    ADD     EAX, byteOffset
- 00000268  89 45 E0		    MOV     destAddress, EAX
+ 00000363  8B 45 F0		    MOV     EAX, offset_TempMatrixLoc
+ 00000366  03 45 E4		    ADD     EAX, byteOffset
+ 00000369  89 45 E0		    MOV     destAddress, EAX
 
 				    ;-------------------------------------------------------------------
 				    ; DEBUG PRINT: Print computed indices and address.
@@ -759,9 +938,9 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				    ; SAVE THE INTEGER INTO THE MATRIX:
 				    ; Simply move the DWORD value from crntTemp to the computed destination.
 
- 0000026B  8B 7D E0		    MOV     EDI, destAddress  ; Load address into EDI
- 0000026E  8B 45 FC		    MOV     EAX, crntTemp     ; Load temperature value
- 00000271  89 07		    MOV     DWORD PTR [EDI], EAX  ; Store the value at the correct address
+ 0000036C  8B 7D E0		    MOV     EDI, destAddress  ; Load address into EDI
+ 0000036F  8B 45 FC		    MOV     EAX, crntTemp     ; Load temperature value
+ 00000372  89 07		    MOV     DWORD PTR [EDI], EAX  ; Store the value at the correct address
 
 
 				    ;-------------------------------------------------------------------
@@ -777,15 +956,15 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 
 
 
- 00000273  5F			    POP     EDI
- 00000274  5E			    POP     ESI
- 00000275  5A			    POP     EDX
- 00000276  59			    POP     ECX
- 00000277  5B			    POP     EBX
- 00000278  58			    POP     EAX
- 00000279  C9		   *	    leave  
- 0000027A  C2 0014		    RET     20
- 0000027D			Save_CrntTemp_ToMatrix ENDP
+ 00000374  5F			    POP     EDI
+ 00000375  5E			    POP     ESI
+ 00000376  5A			    POP     EDX
+ 00000377  59			    POP     ECX
+ 00000378  5B			    POP     EBX
+ 00000379  58			    POP     EAX
+ 0000037A  C9		   *	    leave  
+ 0000037B  C2 0014		    RET     20
+ 0000037E			Save_CrntTemp_ToMatrix ENDP
 
 
 
@@ -797,22 +976,22 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				; postconditions: values saved in array
 				; registers changed: none
 				; ==========================================================================================================================
- 0000027D			Negate_CurntTemp PROC
+ 0000037E			Negate_CurntTemp PROC
 				    LOCAL originalValue:DWORD, negatedValue:DWORD
 
- 0000027D  55		   *	    push   ebp
- 0000027E  8B EC	   *	    mov    ebp, esp
- 00000280  83 C4 F8	   *	    add    esp, 0FFFFFFF8h
- 00000283  50			    PUSH    EAX
- 00000284  53			    PUSH    EBX
+ 0000037E  55		   *	    push   ebp
+ 0000037F  8B EC	   *	    mov    ebp, esp
+ 00000381  83 C4 F8	   *	    add    esp, 0FFFFFFF8h
+ 00000384  50			    PUSH    EAX
+ 00000385  53			    PUSH    EBX
 
 				    ;------------------------------------------------------------
 				    ; PARAMETER HANDLING:
 				    ; [EBP+8] : offset_Int_CurntTemp - pointer to the integer value to be negated.
 				    ;------------------------------------------------------------
- 00000285  8B 45 08		    MOV     EAX, [EBP+8]                ; EAX = pointer to the integer.
- 00000288  8B 18		    MOV     EBX, [EAX]                  ; Load the original integer value.
- 0000028A  89 5D FC		    MOV     originalValue, EBX
+ 00000386  8B 45 08		    MOV     EAX, [EBP+8]                ; EAX = pointer to the integer.
+ 00000389  8B 18		    MOV     EBX, [EAX]                  ; Load the original integer value.
+ 0000038B  89 5D FC		    MOV     originalValue, EBX
 
 
 				    ;------------------------------------------------------------
@@ -826,14 +1005,14 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 
 				    ;------------------------------------------------------------
 				    ; NEGATE THE INTEGER:
- 0000028D  8B 5D FC		    MOV     EBX, originalValue          ; Copy original value to EBX.
- 00000290  F7 DB		    NEG     EBX                         ; EBX = -originalValue.
- 00000292  89 5D F8		    MOV     negatedValue, EBX           ; Store the negated value in local variable.
+ 0000038E  8B 5D FC		    MOV     EBX, originalValue          ; Copy original value to EBX.
+ 00000391  F7 DB		    NEG     EBX                         ; EBX = -originalValue.
+ 00000393  89 5D F8		    MOV     negatedValue, EBX           ; Store the negated value in local variable.
 
 				    ;------------------------------------------------------------
 				    ; STORE THE NEGATED VALUE:
- 00000295  8B 45 08		    MOV     EAX, [EBP + 8]
- 00000298  89 18		    MOV     [EAX], EBX        ; Write negated value back to memory.
+ 00000396  8B 45 08		    MOV     EAX, [EBP + 8]
+ 00000399  89 18		    MOV     [EAX], EBX        ; Write negated value back to memory.
 
 				    ;------------------------------------------------------------
 				    ; DEBUG PRINT: Print negated integer value (optional).
@@ -845,11 +1024,11 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				    ; CALL    CrLf
 
 
- 0000029A  5B			    POP     EBX
- 0000029B  58			    POP     EAX
- 0000029C  C9		   *	    leave  
- 0000029D  C2 0004		    RET     4
- 000002A0			Negate_CurntTemp ENDP
+ 0000039B  5B			    POP     EBX
+ 0000039C  58			    POP     EAX
+ 0000039D  C9		   *	    leave  
+ 0000039E  C2 0004		    RET     4
+ 000003A1			Negate_CurntTemp ENDP
 
 
 
@@ -862,21 +1041,21 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				; postconditions: values saved in array
 				; registers changed: none
 				; ==========================================================================================================================
- 000002A0			ConvertStringToInteger PROC
+ 000003A1			ConvertStringToInteger PROC
 				    LOCAL offset_str_CrntTempLoc:DWORD
 				    LOCAL len_str_CrntTemp:DWORD
 				    LOCAL numInt:DWORD
 				    LOCAL loopCount:DWORD
 
- 000002A0  55		   *	    push   ebp
- 000002A1  8B EC	   *	    mov    ebp, esp
- 000002A3  83 C4 F0	   *	    add    esp, 0FFFFFFF0h
- 000002A6  50			    PUSH    EAX
- 000002A7  53			    PUSH    EBX
- 000002A8  51			    PUSH    ECX
- 000002A9  52			    PUSH    EDX
- 000002AA  56			    PUSH    ESI
- 000002AB  57			    PUSH    EDI
+ 000003A1  55		   *	    push   ebp
+ 000003A2  8B EC	   *	    mov    ebp, esp
+ 000003A4  83 C4 F0	   *	    add    esp, 0FFFFFFF0h
+ 000003A7  50			    PUSH    EAX
+ 000003A8  53			    PUSH    EBX
+ 000003A9  51			    PUSH    ECX
+ 000003AA  52			    PUSH    EDX
+ 000003AB  56			    PUSH    ESI
+ 000003AC  57			    PUSH    EDI
 
 				    ;------------------------------------------------------------
 				    ; PARAMETERS:
@@ -884,23 +1063,23 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				    ; [EBP+8]  : offset_str_CrntTemp - pointer to the ASCII string, null Terminated
 				    ;
 				    ; Store the string pointer in a local variable.
- 000002AC  8B 55 08		    MOV     EDX, [EBP + 8]
- 000002AF  89 55 FC		    MOV     offset_str_CrntTempLoc, EDX
+ 000003AD  8B 55 08		    MOV     EDX, [EBP + 8]
+ 000003B0  89 55 FC		    MOV     offset_str_CrntTempLoc, EDX
 
 				    ;------------------------------------------------------------
 				    ; GET STRING LENGTH;
- 000002B2  8B 75 FC		    MOV     ESI, offset_str_CrntTempLoc
- 000002B5  33 C9		    XOR     ECX, ECX         ; Clear ECX (counter = 0).
+ 000003B3  8B 75 FC		    MOV     ESI, offset_str_CrntTempLoc
+ 000003B6  33 C9		    XOR     ECX, ECX         ; Clear ECX (counter = 0).
 
- 000002B7			L_strlen:
- 000002B7  80 3E 00		    CMP     BYTE PTR [ESI], 0 ; Check if the current byte is 0 (null terminator).
- 000002BA  74 04		    JE      L_done_strlen    ; If yes, jump to done.
- 000002BC  41			    INC     ECX              ; Otherwise, increment counter.
- 000002BD  46			    INC     ESI              ; Move pointer to the next character.
- 000002BE  EB F7		    JMP     L_strlen         ; Loop again.
+ 000003B8			L_strlen:
+ 000003B8  80 3E 00		    CMP     BYTE PTR [ESI], 0 ; Check if the current byte is 0 (null terminator).
+ 000003BB  74 04		    JE      L_done_strlen    ; If yes, jump to done.
+ 000003BD  41			    INC     ECX              ; Otherwise, increment counter.
+ 000003BE  46			    INC     ESI              ; Move pointer to the next character.
+ 000003BF  EB F7		    JMP     L_strlen         ; Loop again.
 
- 000002C0			L_done_strlen:
- 000002C0  8B C1		    MOV     EAX, ECX         ; EAX now holds the string length.
+ 000003C1			L_done_strlen:
+ 000003C1  8B C1		    MOV     EAX, ECX         ; EAX now holds the string length.
 				    ; Optionally: display the length.
 				    ;CALL    WriteDec
 				    ;CALL    CrLf                     ; Returns length in EAX.
@@ -908,7 +1087,7 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 
 
 
- 000002C2  89 45 F8		    MOV     len_str_CrntTemp, EAX
+ 000003C3  89 45 F8		    MOV     len_str_CrntTemp, EAX
 
 				    ;------------------------------------------------------------
 				    ; DEBUG PRINT: Print pointer value.
@@ -936,41 +1115,41 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 
 				    ;------------------------------------------------------------
 				    ; INITIALIZE THE RESULT INTEGER.
- 000002C5  C7 45 F4		    MOV     numInt, 0
+ 000003C6  C7 45 F4		    MOV     numInt, 0
 	   00000000
 
 				    ;------------------------------------------------------------
 				    ; SET UP POINTERS FOR CONVERSION:
 				    ; Use ESI to point to the start of the string.
- 000002CC  8B 75 FC		    MOV     ESI, offset_str_CrntTempLoc
+ 000003CD  8B 75 FC		    MOV     ESI, offset_str_CrntTempLoc
 				    ; Use ECX as a counter, set to the length of the string.
- 000002CF  8B 4D F8		    MOV     ECX, len_str_CrntTemp
+ 000003D0  8B 4D F8		    MOV     ECX, len_str_CrntTemp
 
 
 				    ;------------------------------------------------------------
 				    ; CONVERSION LOOP:
 				    ; For each character in the string, if it is between '0' and '9',
 				    ; update numInt = 10 * numInt + (char - '0').
- 000002D2			    _convert_loop:
- 000002D2  AC			        LODSB                       ; Load byte from [ESI] into AL, ESI++, ECX--
- 000002D3  3C 00		        CMP     AL, 0
- 000002D5  74 1B		        JE      _end_convert_loop    ; If null terminator, end loop.
- 000002D7  3C 30		        CMP     AL, '0'
- 000002D9  72 17		        JB      _end_convert_loop    ; If char < '0', break.
- 000002DB  3C 39		        CMP     AL, '9'
- 000002DD  77 13		        JA      _end_convert_loop    ; If char > '9', break.
+ 000003D3			    _convert_loop:
+ 000003D3  AC			        LODSB                       ; Load byte from [ESI] into AL, ESI++, ECX--
+ 000003D4  3C 00		        CMP     AL, 0
+ 000003D6  74 1B		        JE      _end_convert_loop    ; If null terminator, end loop.
+ 000003D8  3C 30		        CMP     AL, '0'
+ 000003DA  72 17		        JB      _end_convert_loop    ; If char < '0', break.
+ 000003DC  3C 39		        CMP     AL, '9'
+ 000003DE  77 13		        JA      _end_convert_loop    ; If char > '9', break.
 				        ; Convert character to digit.
- 000002DF  0F B6 C0		        MOVZX   EAX, AL             ; Zero-extend AL into EAX.
- 000002E2  83 E8 30		        SUB     EAX, '0'            ; EAX = digit value.
+ 000003E0  0F B6 C0		        MOVZX   EAX, AL             ; Zero-extend AL into EAX.
+ 000003E3  83 E8 30		        SUB     EAX, '0'            ; EAX = digit value.
 				        ; Multiply current numInt by 10.
- 000002E5  8B 5D F4		        MOV     EBX, numInt
- 000002E8  6B DB 0A		        IMUL    EBX, 10
- 000002EB  03 D8		        ADD     EBX, EAX            ; Add digit value.
- 000002ED  89 5D F4		        MOV     numInt, EBX         ; Update numInt.
- 000002F0  E2 E0		        LOOP    _convert_loop
+ 000003E6  8B 5D F4		        MOV     EBX, numInt
+ 000003E9  6B DB 0A		        IMUL    EBX, 10
+ 000003EC  03 D8		        ADD     EBX, EAX            ; Add digit value.
+ 000003EE  89 5D F4		        MOV     numInt, EBX         ; Update numInt.
+ 000003F1  E2 E0		        LOOP    _convert_loop
 
 				    ; end loop and store the converted integer value
- 000002F2			    _end_convert_loop:
+ 000003F3			    _end_convert_loop:
 				        ;------------------------------------------------------------
 				        ; DEBUG PRINT: Print the converted integer.
 				        ; MOV     EDX, OFFSET STR_MSGCONVERTED   ; "CONVERTED INTEGER: "
@@ -983,22 +1162,22 @@ Proj6_pereze4.asm(459) : warning A6004:procedure argument or local not reference
 				        ;------------------------------------------------------------
 				        ; STORE THE RESULT:
 				        ; Save the converted integer at the memory location pointed to by offset_Int_CurntTemp.
- 000002F2  8B 5D 0C		        MOV     EBX, [EBP+12]
- 000002F5  8B 45 F4		        MOV     EAX, numInt
- 000002F8  89 03		        MOV     DWORD PTR [EBX], EAX
+ 000003F3  8B 5D 0C		        MOV     EBX, [EBP+12]
+ 000003F6  8B 45 F4		        MOV     EAX, numInt
+ 000003F9  89 03		        MOV     DWORD PTR [EBX], EAX
 
 				    ;------------------------------------------------------------
 				    ; RESTORE REGISTERS AND RETURN.
- 000002FA  5F			    POP     EDI
- 000002FB  5E			    POP     ESI
- 000002FC  5A			    POP     EDX
- 000002FD  59			    POP     ECX
- 000002FE  5B			    POP     EBX
- 000002FF  58			    POP     EAX
- 00000300  C9		   *	    leave  
- 00000301  C2 0008		    RET     8
- 00000304			ConvertStringToInteger ENDP
-Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not referenced : loopCount
+ 000003FB  5F			    POP     EDI
+ 000003FC  5E			    POP     ESI
+ 000003FD  5A			    POP     EDX
+ 000003FE  59			    POP     ECX
+ 000003FF  5B			    POP     EBX
+ 00000400  58			    POP     EAX
+ 00000401  C9		   *	    leave  
+ 00000402  C2 0008		    RET     8
+ 00000405			ConvertStringToInteger ENDP
+Proj6_pereze4.asm(983) : warning A6004:procedure argument or local not referenced : loopCount
 
 
 
@@ -1012,17 +1191,17 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				; registers changed: none
 				; ==========================================================================================================================
 
- 00000304			GetSign PROC
- 00000304  55			    PUSH    EBP
- 00000305  8B EC		    MOV     EBP, ESP
- 00000307  83 EC 04		    SUB     ESP, 4                ; Allocate 4 bytes for local variable (offset_str_CrntTempLoc)
+ 00000405			GetSign PROC
+ 00000405  55			    PUSH    EBP
+ 00000406  8B EC		    MOV     EBP, ESP
+ 00000408  83 EC 04		    SUB     ESP, 4                ; Allocate 4 bytes for local variable (offset_str_CrntTempLoc)
 
- 0000030A  57			    PUSH    EDI
- 0000030B  56			    PUSH    ESI
- 0000030C  52			    PUSH    EDX
- 0000030D  51			    PUSH    ECX
- 0000030E  53			    PUSH    EBX
- 0000030F  50			    PUSH    EAX
+ 0000040B  57			    PUSH    EDI
+ 0000040C  56			    PUSH    ESI
+ 0000040D  52			    PUSH    EDX
+ 0000040E  51			    PUSH    ECX
+ 0000040F  53			    PUSH    EBX
+ 00000410  50			    PUSH    EAX
 
 				    ;------------------------------------------------------------
 				    ; Parameter Handling:
@@ -1030,8 +1209,8 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				    ; [EBP+12] : offset_Int_Sign      - pointer to the INT byte.
 				    ;
 				    ; Load the string pointer into EBX and store it in our local variable.
- 00000310  8B 5D 08		    MOV     EBX, [EBP+8]          ; EBX = pointer to passed string.
- 00000313  89 5D FC		    MOV     DWORD PTR [EBP-4], EBX  ; Store this pointer in local variable.
+ 00000411  8B 5D 08		    MOV     EBX, [EBP+8]          ; EBX = pointer to passed string.
+ 00000414  89 5D FC		    MOV     DWORD PTR [EBP-4], EBX  ; Store this pointer in local variable.
 
 				    ;------------------------------------------------------------
 				    ; Debug Print: Print pointer value.
@@ -1052,8 +1231,8 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 
 				    ;------------------------------------------------------------
 				    ; Read the first character from the string.
- 00000316  8B 45 FC		    MOV     EAX, [EBP-4]         ; Get stored pointer.
- 00000319  8A 00		    MOV     AL, BYTE PTR [EAX]   ; AL = first character.
+ 00000417  8B 45 FC		    MOV     EAX, [EBP-4]         ; Get stored pointer.
+ 0000041A  8A 00		    MOV     AL, BYTE PTR [EAX]   ; AL = first character.
 
 				    ;------------------------------------------------------------
 				    ; Debug Print: Print first character (as char and ASCII code).
@@ -1070,58 +1249,58 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 
 				    ;------------------------------------------------------------
 				    ; Determine sign based solely on the first character.
- 0000031B  3C 2D		    CMP     AL, '-'            ; If first character is '-'
- 0000031D  74 17		    JE      setNegative
- 0000031F  3C 2B		    CMP     AL, '+'            ; If first character is '+'
- 00000321  74 1E		    JE      setPositive
- 00000323  3C 30		    CMP     AL, '0'
- 00000325  72 04		    JB      defaultPositive    ; If not a digit, default positive.
- 00000327  3C 39		    CMP     AL, '9'
- 00000329  77 00		    JA      defaultPositive    ; If not a digit, default positive.
+ 0000041C  3C 2D		    CMP     AL, '-'            ; If first character is '-'
+ 0000041E  74 17		    JE      setNegative
+ 00000420  3C 2B		    CMP     AL, '+'            ; If first character is '+'
+ 00000422  74 1E		    JE      setPositive
+ 00000424  3C 30		    CMP     AL, '0'
+ 00000426  72 04		    JB      defaultPositive    ; If not a digit, default positive.
+ 00000428  3C 39		    CMP     AL, '9'
+ 0000042A  77 00		    JA      defaultPositive    ; If not a digit, default positive.
 
- 0000032B			    defaultPositive:
+ 0000042C			    defaultPositive:
 				        ; First character is a digit; treat as positive.
- 0000032B  8B 5D 0C		        MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
- 0000032E  C7 03 00000000	        MOV     DWORD PTR [EBX], 0   ; Set int_Sign to 0 (positive).
- 00000334  EB 34		        JMP     printSign
+ 0000042C  8B 5D 0C		        MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
+ 0000042F  C7 03 00000000	        MOV     DWORD PTR [EBX], 0   ; Set int_Sign to 0 (positive).
+ 00000435  EB 34		        JMP     printSign
 
- 00000336			    setNegative:
+ 00000437			    setNegative:
 				        ; First character is '-' sign.
- 00000336  8B 5D 0C		        MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
- 00000339  C7 03 00000001	        MOV     DWORD PTR [EBX], 1   ; Set int_Sign to 1 (negative).
- 0000033F  EB 0B		        JMP     shiftString
+ 00000437  8B 5D 0C		        MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
+ 0000043A  C7 03 00000001	        MOV     DWORD PTR [EBX], 1   ; Set int_Sign to 1 (negative).
+ 00000440  EB 0B		        JMP     shiftString
 
- 00000341			    setPositive:
+ 00000442			    setPositive:
 				        ; First character is '+' sign.
- 00000341  8B 5D 0C		        MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
- 00000344  C7 03 00000000	        MOV     DWORD PTR [EBX], 0   ; Set int_Sign to 0 (positive).
- 0000034A  EB 00		        JMP     shiftString
+ 00000442  8B 5D 0C		        MOV     EBX, [EBP+12]       ; Load pointer to int_Sign byte.
+ 00000445  C7 03 00000000	        MOV     DWORD PTR [EBX], 0   ; Set int_Sign to 0 (positive).
+ 0000044B  EB 00		        JMP     shiftString
 
 				        ;------------------------------------------------------------
- 0000034C			    shiftString:
+ 0000044D			    shiftString:
 				        ; Shift the string left by one byte (remove the sign).
 				        ; Use the local variable stored at [EBP-4] as the pointer.
- 0000034C  8B 45 FC		        MOV     EAX, [EBP-4]        ; EAX = original string pointer.
- 0000034F  83 C0 01		        ADD     EAX, 1              ; Point to the second character.
- 00000352  8B F0		        MOV     ESI, EAX            ; Source pointer = string + 1.
- 00000354  8B 45 FC		        MOV     EAX, [EBP-4]        ; Get original pointer again.
- 00000357  8B F8		        MOV     EDI, EAX            ; Destination pointer = original string pointer.
- 00000359  FC			        CLD                         ; Clear direction flag.
- 0000035A			    shift_loop:
- 0000035A  AC			        LODSB                       ; Load byte from source (ESI) into AL; increments ESI.
- 0000035B  AA			        STOSB                       ; Store byte in AL into destination (EDI); increments EDI.
- 0000035C  3C 00		        CMP     AL, 0               ; Check for null terminator.
- 0000035E  75 FA		        JNE     shift_loop
+ 0000044D  8B 45 FC		        MOV     EAX, [EBP-4]        ; EAX = original string pointer.
+ 00000450  83 C0 01		        ADD     EAX, 1              ; Point to the second character.
+ 00000453  8B F0		        MOV     ESI, EAX            ; Source pointer = string + 1.
+ 00000455  8B 45 FC		        MOV     EAX, [EBP-4]        ; Get original pointer again.
+ 00000458  8B F8		        MOV     EDI, EAX            ; Destination pointer = original string pointer.
+ 0000045A  FC			        CLD                         ; Clear direction flag.
+ 0000045B			    shift_loop:
+ 0000045B  AC			        LODSB                       ; Load byte from source (ESI) into AL; increments ESI.
+ 0000045C  AA			        STOSB                       ; Store byte in AL into destination (EDI); increments EDI.
+ 0000045D  3C 00		        CMP     AL, 0               ; Check for null terminator.
+ 0000045F  75 FA		        JNE     shift_loop
 				        ; Debug Print: Print shifted string.
- 00000360  BA 00000CC8 R	        MOV     EDX, OFFSET str_MsgShiftedString  ; "SHIFTED STRING: "
+ 00000461  BA 00000CC8 R	        MOV     EDX, OFFSET str_MsgShiftedString  ; "SHIFTED STRING: "
 				        ;CALL    CrLf
 				        ;CALL    WriteString
- 00000365  8B 55 FC		        MOV     EDX, [EBP-4]        ; Local variable still holds original pointer.
+ 00000466  8B 55 FC		        MOV     EDX, [EBP-4]        ; Local variable still holds original pointer.
 				        ;CALL    WriteString
- 00000368  EB 00		        JMP     printSign
+ 00000469  EB 00		        JMP     printSign
 
 				        ;------------------------------------------------------------
- 0000036A			    printSign:
+ 0000046B			    printSign:
 				        ; Debug Print: Print the obtained int_Sign value.
 				        ;MOV     EDX, OFFSET str_MsgIntSign  ; "INT SIGN: "
 				        ;CALL    CrLf
@@ -1132,17 +1311,17 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				        ;CALL    CrLf
 
 				        ;------------------------------------------------------------
- 0000036A			    done:
- 0000036A  58			        POP     EAX
- 0000036B  5B			        POP     EBX
- 0000036C  59			        POP     ECX
- 0000036D  5A			        POP     EDX
- 0000036E  5E			        POP     ESI
- 0000036F  5F			        POP     EDI
- 00000370  8B E5		        MOV     ESP, EBP
- 00000372  5D			        POP     EBP
- 00000373  C2 0008		        RET     8
- 00000376			GetSign ENDP
+ 0000046B			    done:
+ 0000046B  58			        POP     EAX
+ 0000046C  5B			        POP     EBX
+ 0000046D  59			        POP     ECX
+ 0000046E  5A			        POP     EDX
+ 0000046F  5E			        POP     ESI
+ 00000470  5F			        POP     EDI
+ 00000471  8B E5		        MOV     ESP, EBP
+ 00000473  5D			        POP     EBP
+ 00000474  C2 0008		        RET     8
+ 00000477			GetSign ENDP
 
 
 
@@ -1154,7 +1333,7 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				; postconditions: values saved in array
 				; registers changed: none
 				; ==========================================================================================================================
- 00000376			Extract_StrCrntTemp PROC
+ 00000477			Extract_StrCrntTemp PROC
 				    ;-------------------------------------------------------------------
 				    ; Local Variables:
 				    ;   prev_DlmterPos      - stores the parameter int_Prev_DlmterPos (previous delimiter index)
@@ -1168,15 +1347,15 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				    LOCAL startPos:DWORD
 				    LOCAL stringLength:DWORD
 
- 00000376  55		   *	    push   ebp
- 00000377  8B EC	   *	    mov    ebp, esp
- 00000379  83 C4 EC	   *	    add    esp, 0FFFFFFECh
- 0000037C  50			    PUSH    EAX
- 0000037D  53			    PUSH    EBX
- 0000037E  51			    PUSH    ECX
- 0000037F  52			    PUSH    EDX
- 00000380  56			    PUSH    ESI
- 00000381  57			    PUSH    EDI
+ 00000477  55		   *	    push   ebp
+ 00000478  8B EC	   *	    mov    ebp, esp
+ 0000047A  83 C4 EC	   *	    add    esp, 0FFFFFFECh
+ 0000047D  50			    PUSH    EAX
+ 0000047E  53			    PUSH    EBX
+ 0000047F  51			    PUSH    ECX
+ 00000480  52			    PUSH    EDX
+ 00000481  56			    PUSH    ESI
+ 00000482  57			    PUSH    EDI
 
 				    ;-------------------------------------------------------------------
 				    ; Parameter Handling:
@@ -1187,49 +1366,49 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				    ;   [EBP+20] : offset_File_TempReadings - file buffer address.
 				    ;
 				    ; Load parameters into local variables with the updated order.
- 00000382  8B 45 0C		    MOV     EAX, [EBP+12]
- 00000385  89 45 FC		    MOV     prev_DlmterPos, EAX          ; Save previous delimiter position.
- 00000388  8B 45 08		    MOV     EAX, [EBP+8]
- 0000038B  89 45 F8		    MOV     crnt_DlmterPos, EAX          ; Save current delimiter position.
- 0000038E  8B 45 14		    MOV     EAX, [EBP+20]
- 00000391  89 45 F4		    MOV     file_TempReadingsLoc, EAX   ; Save file buffer base address.
+ 00000483  8B 45 0C		    MOV     EAX, [EBP+12]
+ 00000486  89 45 FC		    MOV     prev_DlmterPos, EAX          ; Save previous delimiter position.
+ 00000489  8B 45 08		    MOV     EAX, [EBP+8]
+ 0000048C  89 45 F8		    MOV     crnt_DlmterPos, EAX          ; Save current delimiter position.
+ 0000048F  8B 45 14		    MOV     EAX, [EBP+20]
+ 00000492  89 45 F4		    MOV     file_TempReadingsLoc, EAX   ; Save file buffer base address.
 
 
 				    ; Debugging Messages
- 00000394  BA 00000508 R	    MOV     EDX, OFFSET str_MsgLoadedFile
- 00000399  E8 00000000 E	    CALL    CrLf
- 0000039E  E8 00000000 E	    CALL    WriteString
- 000003A3  8B 55 F4		    MOV     EDX, file_TempReadingsLoc
- 000003A6  E8 00000000 E	    CALL    CrLf
- 000003AB  E8 00000000 E	    CALL    WriteString
+ 00000495  BA 00000508 R	    MOV     EDX, OFFSET str_MsgLoadedFile
+ 0000049A  E8 00000000 E	    CALL    CrLf
+ 0000049F  E8 00000000 E	    CALL    WriteString
+ 000004A4  8B 55 F4		    MOV     EDX, file_TempReadingsLoc
+ 000004A7  E8 00000000 E	    CALL    CrLf
+ 000004AC  E8 00000000 E	    CALL    WriteString
 
 
- 000003B0  BA 000004C5 R	    MOV     EDX, OFFSET str_MsgPrevDlmtrPos
- 000003B5  E8 00000000 E	    CALL    CrLf
- 000003BA  E8 00000000 E	    CALL    WriteString
- 000003BF  8B 45 FC		    MOV     EAX, prev_DlmterPos
- 000003C2  E8 00000000 E	    CALL    WriteInt
+ 000004B1  BA 000004C5 R	    MOV     EDX, OFFSET str_MsgPrevDlmtrPos
+ 000004B6  E8 00000000 E	    CALL    CrLf
+ 000004BB  E8 00000000 E	    CALL    WriteString
+ 000004C0  8B 45 FC		    MOV     EAX, prev_DlmterPos
+ 000004C3  E8 00000000 E	    CALL    WriteInt
 
- 000003C7  BA 000004E7 R	    MOV     EDX, OFFSET str_MsgCrntDlmtrPos
- 000003CC  E8 00000000 E	    CALL    CrLf
- 000003D1  E8 00000000 E	    CALL    WriteString
- 000003D6  8B 45 F8		    MOV     EAX, crnt_DlmterPos
- 000003D9  E8 00000000 E	    CALL    WriteInt
+ 000004C8  BA 000004E7 R	    MOV     EDX, OFFSET str_MsgCrntDlmtrPos
+ 000004CD  E8 00000000 E	    CALL    CrLf
+ 000004D2  E8 00000000 E	    CALL    WriteString
+ 000004D7  8B 45 F8		    MOV     EAX, crnt_DlmterPos
+ 000004DA  E8 00000000 E	    CALL    WriteInt
 
 
 				    ;-------------------------------------------------------------------
 				    ; Compute the Starting Position for Extraction:
 				    ; startPos = prev_DlmterPos + 1  (skip the previous delimiter)
- 000003DE  8B 45 FC		    MOV     EAX, prev_DlmterPos
- 000003E1  83 C0 01		    ADD     EAX, 1                     ; Advance one position past previous delimiter.
- 000003E4  89 45 F0		    MOV     startPos, EAX              ; Save computed starting index.
+ 000004DF  8B 45 FC		    MOV     EAX, prev_DlmterPos
+ 000004E2  83 C0 01		    ADD     EAX, 1                     ; Advance one position past previous delimiter.
+ 000004E5  89 45 F0		    MOV     startPos, EAX              ; Save computed starting index.
 
 				    ;-------------------------------------------------------------------
 				    ; Compute the Length of the Substring to Extract:
 				    ; stringLength = crnt_DlmterPos - startPos
- 000003E7  8B 45 F8		    MOV     EAX, crnt_DlmterPos
- 000003EA  2B 45 F0		    SUB     EAX, startPos              ; Compute number of characters to copy.
- 000003ED  89 45 EC		    MOV     stringLength, EAX          ; Save the computed string length.
+ 000004E8  8B 45 F8		    MOV     EAX, crnt_DlmterPos
+ 000004EB  2B 45 F0		    SUB     EAX, startPos              ; Compute number of characters to copy.
+ 000004EE  89 45 EC		    MOV     stringLength, EAX          ; Save the computed string length.
 
 				    ;-------------------------------------------------------------------
 				    ; Debug Prints (Optional):
@@ -1251,27 +1430,27 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				    ;-------------------------------------------------------------------
 				    ; Set Up Source and Destination Pointers for Copy:
 				    ; Source pointer = file_TempReadingsLoc + startPos
- 000003F0  8B 45 F4		    MOV     EAX, file_TempReadingsLoc
- 000003F3  03 45 F0		    ADD     EAX, startPos              ; Compute effective source address.
- 000003F6  8B F0		    MOV     ESI, EAX                   ; ESI now points to the substring in the file buffer.
+ 000004F1  8B 45 F4		    MOV     EAX, file_TempReadingsLoc
+ 000004F4  03 45 F0		    ADD     EAX, startPos              ; Compute effective source address.
+ 000004F7  8B F0		    MOV     ESI, EAX                   ; ESI now points to the substring in the file buffer.
 				    ;
 				    ; Destination pointer = offset_str_CrntTemp (passed as parameter at [EBP+16])
- 000003F8  8B 45 10		    MOV     EAX, [EBP+16]
- 000003FB  8B F8		    MOV     EDI, EAX                   ; EDI points to the destination buffer.
+ 000004F9  8B 45 10		    MOV     EAX, [EBP+16]
+ 000004FC  8B F8		    MOV     EDI, EAX                   ; EDI points to the destination buffer.
 
 				    ;-------------------------------------------------------------------
 				    ; Copy the Substring Using REP MOVSB:
 				    ; Clear the Direction Flag to ensure auto-increment.
- 000003FD  FC			    CLD
+ 000004FE  FC			    CLD
 				    ; Set ECX = stringLength (number of bytes to copy).
- 000003FE  8B 4D EC		    MOV     ECX, stringLength
- 00000401  F3/ A4		    REP     MOVSB                    ; Copy ECX bytes from DS:ESI to ES:EDI.
+ 000004FF  8B 4D EC		    MOV     ECX, stringLength
+ 00000502  F3/ A4		    REP     MOVSB                    ; Copy ECX bytes from DS:ESI to ES:EDI.
 
 				    ;SkipCopy:
 				        ;-------------------------------------------------------------------
 				        ; Append the NULL Terminator:
- 00000403  B0 00		        MOV     AL, 0                     ; Prepare NULL in AL.
- 00000405  AA			        STOSB                             ; Store AL at destination and increment EDI.
+ 00000504  B0 00		        MOV     AL, 0                     ; Prepare NULL in AL.
+ 00000506  AA			        STOSB                             ; Store AL at destination and increment EDI.
 
 				        ; Debugging messages
 				        ;MOV     EDX, [EBP+16]
@@ -1281,15 +1460,15 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 
 				    ;-------------------------------------------------------------------
 				    ; Restore Registers and Return:
- 00000406  5F			    POP     EDI
- 00000407  5E			    POP     ESI
- 00000408  5A			    POP     EDX
- 00000409  59			    POP     ECX
- 0000040A  5B			    POP     EBX
- 0000040B  58			    POP     EAX
- 0000040C  C9		   *	    leave  
- 0000040D  C2 0010		    RET     16                        ; Clean up 20 bytes (4 parameters) from the stack.
- 00000410			Extract_StrCrntTemp ENDP
+ 00000507  5F			    POP     EDI
+ 00000508  5E			    POP     ESI
+ 00000509  5A			    POP     EDX
+ 0000050A  59			    POP     ECX
+ 0000050B  5B			    POP     EBX
+ 0000050C  58			    POP     EAX
+ 0000050D  C9		   *	    leave  
+ 0000050E  C2 0010		    RET     16                        ; Clean up 20 bytes (4 parameters) from the stack.
+ 00000511			Extract_StrCrntTemp ENDP
 
 
 
@@ -1302,20 +1481,20 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				; postconditions: values saved in memory
 				; registers changed: none
 				; ==========================================================================================================================
- 00000410			Get_NextDlmtrPos PROC
+ 00000511			Get_NextDlmtrPos PROC
 				    LOCAL crntDlmtrPos:DWORD
 				    LOCAL prevDlmterPos:DWORD
 				    LOCAL offset_File_TempReadingsLoc:DWORD
 
- 00000410  55		   *	    push   ebp
- 00000411  8B EC	   *	    mov    ebp, esp
- 00000413  83 C4 F4	   *	    add    esp, 0FFFFFFF4h
- 00000416  50			    PUSH    EAX
- 00000417  53			    PUSH    EBX
- 00000418  51			    PUSH    ECX
- 00000419  52			    PUSH    EDX
- 0000041A  56			    PUSH    ESI
- 0000041B  57			    PUSH    EDI
+ 00000511  55		   *	    push   ebp
+ 00000512  8B EC	   *	    mov    ebp, esp
+ 00000514  83 C4 F4	   *	    add    esp, 0FFFFFFF4h
+ 00000517  50			    PUSH    EAX
+ 00000518  53			    PUSH    EBX
+ 00000519  51			    PUSH    ECX
+ 0000051A  52			    PUSH    EDX
+ 0000051B  56			    PUSH    ESI
+ 0000051C  57			    PUSH    EDI
 
 				    ; Parameters:
 				    ;   [EBP+8]  : int_PrevDlmterPos
@@ -1326,8 +1505,8 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				    ;              (DWORD) The address of the file saved in memory buffer (Temperature readings).
 
 				    ; Store passed parameters in local variables.
- 0000041C  8B 45 08		    MOV     EAX, [EBP+8]  
- 0000041F  89 45 F8		    MOV     prevDlmterPos, EAX                ; Save previous delimiter position.
+ 0000051D  8B 45 08		    MOV     EAX, [EBP+8]  
+ 00000520  89 45 F8		    MOV     prevDlmterPos, EAX                ; Save previous delimiter position.
 
 				    ; Debugging messages
 				    ;MOV     EDX, OFFSET str_MsgPrevDlmtrPos
@@ -1336,8 +1515,8 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				    ;MOV     EAX, prevDlmterPos
 				    ;CALL    WriteInt
 
- 00000422  8B 45 10		    MOV     EAX, [EBP+16]
- 00000425  89 45 F4		    MOV     offset_File_TempReadingsLoc, EAX  ; Save file buffer base address.
+ 00000523  8B 45 10		    MOV     EAX, [EBP+16]
+ 00000526  89 45 F4		    MOV     offset_File_TempReadingsLoc, EAX  ; Save file buffer base address.
 
 
 				    ; Debugging messages
@@ -1350,62 +1529,62 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 
 				    ; Compute starting address for search:
 				    ; Start searching at (prevDlmterPos + 1) relative to the file buffer.
- 00000428  8B 45 F8		    MOV     EAX, prevDlmterPos
- 0000042B  83 C0 01		    ADD     EAX, 1                                      ; Next search index.
- 0000042E  8B 5D F4		    MOV     EBX, offset_File_TempReadingsLoc            ; Load base address.
- 00000431  03 D8		    ADD     EBX, EAX                                    ; EBX now points to the search start position.
- 00000433  8B F3		    MOV     ESI, EBX                                    ; Set ESI to the starting search pointer.
+ 00000529  8B 45 F8		    MOV     EAX, prevDlmterPos
+ 0000052C  83 C0 01		    ADD     EAX, 1                                      ; Next search index.
+ 0000052F  8B 5D F4		    MOV     EBX, offset_File_TempReadingsLoc            ; Load base address.
+ 00000532  03 D8		    ADD     EBX, EAX                                    ; EBX now points to the search start position.
+ 00000534  8B F3		    MOV     ESI, EBX                                    ; Set ESI to the starting search pointer.
 
 				    ; Search for next delimiter value in the file
- 00000435			    _searchLoop2:
- 00000435  AC			        LODSB                                           ; Load byte at [ESI] into AL; ESI increments automatically.
- 00000436  3C 2C		        CMP     AL, DELIMITER                           ; Compare byte with the delimiter
- 00000438  74 02		        JE      _found_Dlmtr
- 0000043A  EB F9		        JMP     _searchLoop2                            ; Continue scanning
+ 00000536			    _searchLoop2:
+ 00000536  AC			        LODSB                                           ; Load byte at [ESI] into AL; ESI increments automatically.
+ 00000537  3C 2C		        CMP     AL, DELIMITER                           ; Compare byte with the delimiter
+ 00000539  74 02		        JE      _found_Dlmtr
+ 0000053B  EB F9		        JMP     _searchLoop2                            ; Continue scanning
 
 				    ; Jump here once the next delimiter is found
- 0000043C			    _found_Dlmtr:
+ 0000053D			    _found_Dlmtr:
 				        ; ESI now points one byte past the found delimiter.
- 0000043C  8B C6		        MOV     EAX, ESI
- 0000043E  48			        DEC     EAX                                     ; Adjust: EAX now points to the delimiter itself.
- 0000043F  89 45 FC		        MOV     crntDlmtrPos, EAX                       ; Store current delimiter absolute position.
+ 0000053D  8B C6		        MOV     EAX, ESI
+ 0000053F  48			        DEC     EAX                                     ; Adjust: EAX now points to the delimiter itself.
+ 00000540  89 45 FC		        MOV     crntDlmtrPos, EAX                       ; Store current delimiter absolute position.
 
 				        ; Calculate the delimiter's index relative to the file buffer.
- 00000442  8B 4D F4		        MOV     ECX, offset_File_TempReadingsLoc        ; Base address.
- 00000445  29 4D FC		        SUB     crntDlmtrPos, ECX                       ; crntDlmtrPos now holds the index.
+ 00000543  8B 4D F4		        MOV     ECX, offset_File_TempReadingsLoc        ; Base address.
+ 00000546  29 4D FC		        SUB     crntDlmtrPos, ECX                       ; crntDlmtrPos now holds the index.
 
 
 				        ; Check for CRLF between previous delimiter and current delimiter.
 				        ; Scan from (prevDlmterPos + 1) up to the found delimiter index.
- 00000448  8B 45 F8		        MOV     EAX, prevDlmterPos
- 0000044B  83 C0 01		        ADD     EAX, 1                                  ; Starting index for scan.
- 0000044E  8B 5D FC		        MOV     EBX, crntDlmtrPos                       ; EBX holds current delimiter index.
- 00000451  8B F8		        MOV     EDI, EAX                                ; EDI is our scanning index.
+ 00000549  8B 45 F8		        MOV     EAX, prevDlmterPos
+ 0000054C  83 C0 01		        ADD     EAX, 1                                  ; Starting index for scan.
+ 0000054F  8B 5D FC		        MOV     EBX, crntDlmtrPos                       ; EBX holds current delimiter index.
+ 00000552  8B F8		        MOV     EDI, EAX                                ; EDI is our scanning index.
 
- 00000453			    _adjustLoop:
- 00000453  3B FB		        CMP     EDI, EBX
- 00000455  7D 19		        JGE     _doneAdjust                             ; If scanning index >= current delimiter index, finish.
- 00000457  8A 44 3D F4		        MOV     AL, BYTE PTR [offset_File_TempReadingsLoc + EDI]
- 0000045B  3C 0D		        CMP     AL, 0Dh
- 0000045D  74 03		        JE      _checkLF
- 0000045F  47			        INC     EDI
- 00000460  EB F1		        JMP     _adjustLoop
+ 00000554			    _adjustLoop:
+ 00000554  3B FB		        CMP     EDI, EBX
+ 00000556  7D 19		        JGE     _doneAdjust                             ; If scanning index >= current delimiter index, finish.
+ 00000558  8A 44 3D F4		        MOV     AL, BYTE PTR [offset_File_TempReadingsLoc + EDI]
+ 0000055C  3C 0D		        CMP     AL, 0Dh
+ 0000055E  74 03		        JE      _checkLF
+ 00000560  47			        INC     EDI
+ 00000561  EB F1		        JMP     _adjustLoop
 
- 00000462			    _checkLF:
- 00000462  80 7C 3D F5 0A	        CMP     BYTE PTR [offset_File_TempReadingsLoc + EDI + 1], 0Ah
- 00000467  74 03		        JE      _foundCRLF
- 00000469  47			        INC     EDI
- 0000046A  EB E7		        JMP     _adjustLoop
+ 00000563			    _checkLF:
+ 00000563  80 7C 3D F5 0A	        CMP     BYTE PTR [offset_File_TempReadingsLoc + EDI + 1], 0Ah
+ 00000568  74 03		        JE      _foundCRLF
+ 0000056A  47			        INC     EDI
+ 0000056B  EB E7		        JMP     _adjustLoop
 
- 0000046C			    _foundCRLF:
- 0000046C  83 45 FC 02		        ADD     crntDlmtrPos, 2            ; Adjust current delimiter index by adding 2.
+ 0000056D			    _foundCRLF:
+ 0000056D  83 45 FC 02		        ADD     crntDlmtrPos, 2            ; Adjust current delimiter index by adding 2.
 
 
- 00000470			    _doneAdjust:
+ 00000571			    _doneAdjust:
 				        ; Save the result in the memory location pointed to by offset_Int_CrntDlmtrPos.
- 00000470  8B 45 FC		        MOV     EAX, crntDlmtrPos
- 00000473  8B 55 0C		        MOV     EDX, [EBP+12]
- 00000476  89 02		        MOV     [EDX], EAX
+ 00000571  8B 45 FC		        MOV     EAX, crntDlmtrPos
+ 00000574  8B 55 0C		        MOV     EDX, [EBP+12]
+ 00000577  89 02		        MOV     [EDX], EAX
 
 				        ; Debug printouts:
 				        ;MOV     EDX, OFFSET str_MsgCrntDlmtrPos
@@ -1414,15 +1593,15 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				        ;CALL    WriteDec
 
 
- 00000478  5F			        POP     EDI
- 00000479  5E			        POP     ESI
- 0000047A  5A			        POP     EDX
- 0000047B  59			        POP     ECX
- 0000047C  5B			        POP     EBX
- 0000047D  58			        POP     EAX
- 0000047E  C9		   *	    leave  
- 0000047F  C2 000C		        RET     12
- 00000482			Get_NextDlmtrPos ENDP
+ 00000579  5F			        POP     EDI
+ 0000057A  5E			        POP     ESI
+ 0000057B  5A			        POP     EDX
+ 0000057C  59			        POP     ECX
+ 0000057D  5B			        POP     EBX
+ 0000057E  58			        POP     EAX
+ 0000057F  C9		   *	    leave  
+ 00000580  C2 000C		        RET     12
+ 00000583			Get_NextDlmtrPos ENDP
 
 
 
@@ -1435,22 +1614,22 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				; postconditions: values saved in memory
 				; registers changed: none
 				; ==========================================================================================================================
- 00000482			Get_MatrixSize PROC
+ 00000583			Get_MatrixSize PROC
 
 				    LOCAL int_NumRows:DWORD
 				    LOCAL int_NumCols:DWORD
 				    LOCAL offset_File_TempReadings:DWORD
 				    LOCAL rowHasData:BYTE
 
- 00000482  55		   *	    push   ebp
- 00000483  8B EC	   *	    mov    ebp, esp
- 00000485  83 C4 F0	   *	    add    esp, 0FFFFFFF0h
- 00000488  50			    PUSH    EAX
- 00000489  53			    PUSH    EBX
- 0000048A  51			    PUSH    ECX
- 0000048B  52			    PUSH    EDX
- 0000048C  56			    PUSH    ESI
- 0000048D  57			    PUSH    EDI
+ 00000583  55		   *	    push   ebp
+ 00000584  8B EC	   *	    mov    ebp, esp
+ 00000586  83 C4 F0	   *	    add    esp, 0FFFFFFF0h
+ 00000589  50			    PUSH    EAX
+ 0000058A  53			    PUSH    EBX
+ 0000058B  51			    PUSH    ECX
+ 0000058C  52			    PUSH    EDX
+ 0000058D  56			    PUSH    ESI
+ 0000058E  57			    PUSH    EDI
 
 
 				    ; Parameters
@@ -1459,114 +1638,114 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 				    ; [EBP + 8]  offset_File_TempReadings
 
 				    ; Load file address into ESI
- 0000048E  8B 45 08		    MOV     EAX, [EBP + 8]
- 00000491  89 45 F4		    MOV     offset_File_TempReadings, EAX
- 00000494  8B 75 F4		    MOV     ESI, offset_File_TempReadings       ; Had to abandon use of local variable, use ESI instead to make use of LODSB
+ 0000058F  8B 45 08		    MOV     EAX, [EBP + 8]
+ 00000592  89 45 F4		    MOV     offset_File_TempReadings, EAX
+ 00000595  8B 75 F4		    MOV     ESI, offset_File_TempReadings       ; Had to abandon use of local variable, use ESI instead to make use of LODSB
 
 				    ; Initialize counters and flag
- 00000497  C7 45 FC		    MOV     int_NumRows, 0
+ 00000598  C7 45 FC		    MOV     int_NumRows, 0
 	   00000000
- 0000049E  C7 45 F8		    MOV     int_NumCols, 0                      ; Column count is based on delimiters (+ 1 if non-empty)
+ 0000059F  C7 45 F8		    MOV     int_NumCols, 0                      ; Column count is based on delimiters (+ 1 if non-empty)
 	   00000000
- 000004A5  C6 45 F3 00		    MOV     rowHasData, 0
+ 000005A6  C6 45 F3 00		    MOV     rowHasData, 0
 
 				    ; ----------------------------------------------------------------
 				    ; Process the first row: count columns and check for non-empty line
- 000004A9			    _countCols:
- 000004A9  AC			        LODSB                                   ; Load next byte from [ESI] into AL and increment ESI
- 000004AA  8A D8		        MOV     BL, AL                          ; Save the character in BL
+ 000005AA			    _countCols:
+ 000005AA  AC			        LODSB                                   ; Load next byte from [ESI] into AL and increment ESI
+ 000005AB  8A D8		        MOV     BL, AL                          ; Save the character in BL
 
- 000004AC  80 FB 00		        CMP     BL, 0                           ; End-of-file?
- 000004AF  74 49		        JE      _end_Get_MatrixSize
+ 000005AD  80 FB 00		        CMP     BL, 0                           ; End-of-file?
+ 000005B0  74 49		        JE      _end_Get_MatrixSize
 
- 000004B1  80 FB 0D		        CMP     BL, 0Dh                          ; Skip CR (Carriage Return)
- 000004B4  74 F3		        JE      _countCols
+ 000005B2  80 FB 0D		        CMP     BL, 0Dh                          ; Skip CR (Carriage Return)
+ 000005B5  74 F3		        JE      _countCols
 
- 000004B6  80 FB 0A		        CMP     BL, 0Ah                     ; LF indicates end-of-line
- 000004B9  74 10		        JE      _finishFirstRow
+ 000005B7  80 FB 0A		        CMP     BL, 0Ah                     ; LF indicates end-of-line
+ 000005BA  74 10		        JE      _finishFirstRow
 
 				        ; Non CR/LF character: mark the row as non-empty
- 000004BB  C6 45 F3 01		        MOV     rowHasData, 1
+ 000005BC  C6 45 F3 01		        MOV     rowHasData, 1
 
- 000004BF  80 FB 2C		        CMP     BL, DELIMITER                     ; Check for delimiter
- 000004C2  75 03		        JNE     _continueCols
- 000004C4  FF 45 F8		        INC     int_NumCols
+ 000005C0  80 FB 2C		        CMP     BL, DELIMITER                     ; Check for delimiter
+ 000005C3  75 03		        JNE     _continueCols
+ 000005C5  FF 45 F8		        INC     int_NumCols
 
 				    ; Jump here if encountered delimiter
- 000004C7			    _continueCols:
- 000004C7  8A C3		        MOV     AL, BL
- 000004C9  EB DE		        JMP     _countCols
+ 000005C8			    _continueCols:
+ 000005C8  8A C3		        MOV     AL, BL
+ 000005CA  EB DE		        JMP     _countCols
 
 				    ; At the end of the first row, count it if it contains data.
- 000004CB			    _finishFirstRow:
+ 000005CC			    _finishFirstRow:
 
- 000004CB  80 7D F3 01		    CMP     rowHasData, 1
- 000004CF  75 03		    JNE     _skipFirstRow
- 000004D1  FF 45 FC		    INC     int_NumRows
+ 000005CC  80 7D F3 01		    CMP     rowHasData, 1
+ 000005D0  75 03		    JNE     _skipFirstRow
+ 000005D2  FF 45 FC		    INC     int_NumRows
 
 				    ; Assume file has at least one row
- 000004D4			    _skipFirstRow:
- 000004D4  C6 45 F3 00		        MOV     rowHasData, 0               ; Reset flag for next row
+ 000005D5			    _skipFirstRow:
+ 000005D5  C6 45 F3 00		        MOV     rowHasData, 0               ; Reset flag for next row
 
 
 				    ; Process subsequent rows
- 000004D8			    _countRows:
- 000004D8  AC			        LODSB                               ; Load next byte
- 000004D9  3C 00		        CMP     AL, 0                       ; End-of-file?
- 000004DB  74 1D		        JE      _end_Get_MatrixSize
- 000004DD  3C 0D		        CMP     AL, 0Dh                     ; Skip CR (Carriage Return)
- 000004DF  74 F7		        JE      _countRows
- 000004E1  3C 0A		        CMP     AL, 0Ah                     ; LF indicates end-of-line
- 000004E3  74 06		        JE      _endOfRow
+ 000005D9			    _countRows:
+ 000005D9  AC			        LODSB                               ; Load next byte
+ 000005DA  3C 00		        CMP     AL, 0                       ; End-of-file?
+ 000005DC  74 1D		        JE      _end_Get_MatrixSize
+ 000005DE  3C 0D		        CMP     AL, 0Dh                     ; Skip CR (Carriage Return)
+ 000005E0  74 F7		        JE      _countRows
+ 000005E2  3C 0A		        CMP     AL, 0Ah                     ; LF indicates end-of-line
+ 000005E4  74 06		        JE      _endOfRow
 				        ; Non CR/LF character: mark the row as non-empty
- 000004E5  C6 45 F3 01		        MOV     rowHasData, 1
- 000004E9  EB ED		        JMP     _countRows
+ 000005E6  C6 45 F3 01		        MOV     rowHasData, 1
+ 000005EA  EB ED		        JMP     _countRows
 
 				    ; At the end of a row, count it if it contains data.
- 000004EB			    _endOfRow:
- 000004EB  80 7D F3 01		    CMP     rowHasData, 1
- 000004EF  75 03		    JNE     _resetRow
- 000004F1  FF 45 FC		    INC     int_NumRows
+ 000005EC			    _endOfRow:
+ 000005EC  80 7D F3 01		    CMP     rowHasData, 1
+ 000005F0  75 03		    JNE     _resetRow
+ 000005F2  FF 45 FC		    INC     int_NumRows
 
 				    ; Reset flag for the next row
- 000004F4			    _resetRow:
- 000004F4  C6 45 F3 00		        MOV     rowHasData, 0       
- 000004F8  EB DE		        JMP     _countRows
+ 000005F5			    _resetRow:
+ 000005F5  C6 45 F3 00		        MOV     rowHasData, 0       
+ 000005F9  EB DE		        JMP     _countRows
 
 				     
 				    ; check if final row has data
- 000004FA			    _end_Get_MatrixSize:
- 000004FA  80 7D F3 01		    CMP     rowHasData, 1
- 000004FE  74 02		    JE      _addFinalRow
- 00000500  EB 05		    JMP    _storeCounts 
+ 000005FB			    _end_Get_MatrixSize:
+ 000005FB  80 7D F3 01		    CMP     rowHasData, 1
+ 000005FF  74 02		    JE      _addFinalRow
+ 00000601  EB 05		    JMP    _storeCounts 
 
 
 				    ; Jump here if final Row has data to count it
- 00000502			    _addFinalRow:
- 00000502  FF 45 FC		        INC     int_NumRows
- 00000505  EB 00		        JMP     _storeCounts
+ 00000603			    _addFinalRow:
+ 00000603  FF 45 FC		        INC     int_NumRows
+ 00000606  EB 00		        JMP     _storeCounts
 
 				    ; Store the row and column counts in the provided output addresses.
- 00000507			    _storeCounts:
+ 00000608			    _storeCounts:
 
- 00000507  8B 45 FC		    MOV     EAX, int_NumRows
- 0000050A  8B 7D 0C		    MOV     EDI, [EBP + 12]
- 0000050D  89 07		    MOV     DWORD PTR [EDI], EAX
+ 00000608  8B 45 FC		    MOV     EAX, int_NumRows
+ 0000060B  8B 7D 0C		    MOV     EDI, [EBP + 12]
+ 0000060E  89 07		    MOV     DWORD PTR [EDI], EAX
 
- 0000050F  8B 45 F8		    MOV     EAX, int_NumCols
- 00000512  8B 7D 10		    MOV     EDI, [EBP + 16]
- 00000515  89 07		    MOV     DWORD PTR [EDI], EAX
+ 00000610  8B 45 F8		    MOV     EAX, int_NumCols
+ 00000613  8B 7D 10		    MOV     EDI, [EBP + 16]
+ 00000616  89 07		    MOV     DWORD PTR [EDI], EAX
 
- 00000517  5F			    POP     EDI
- 00000518  5E			    POP     ESI
- 00000519  5A			    POP     EDX
- 0000051A  59			    POP     ECX
- 0000051B  5B			    POP     EBX
- 0000051C  58			    POP     EAX
- 0000051D  C9		   *	    leave  
- 0000051E  C2 000C		    RET     12
+ 00000618  5F			    POP     EDI
+ 00000619  5E			    POP     ESI
+ 0000061A  5A			    POP     EDX
+ 0000061B  59			    POP     ECX
+ 0000061C  5B			    POP     EBX
+ 0000061D  58			    POP     EAX
+ 0000061E  C9		   *	    leave  
+ 0000061F  C2 000C		    RET     12
 
- 00000521			Get_MatrixSize ENDP
+ 00000622			Get_MatrixSize ENDP
 
 				; ==========================================================================================================================
 				; Init Temp Matrix
@@ -1581,7 +1760,7 @@ Proj6_pereze4.asm(809) : warning A6004:procedure argument or local not reference
 
 
 				END main
-Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 17:03:29
+Microsoft (R) Macro Assembler Version 14.29.30158.0	    03/15/25 18:56:14
 *Temp List Reverser     (Proj6_pereze4.asm		     Symbols 2 - 1
 
 
@@ -1685,7 +1864,7 @@ Segments and Groups:
 FLAT . . . . . . . . . . . . . .	GROUP
 STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
 _DATA  . . . . . . . . . . . . .	32 Bit	 00000D8C Para	  Public  'DATA'	
-_TEXT  . . . . . . . . . . . . .	32 Bit	 00000521 Para	  Public  'CODE'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 00000622 Para	  Public  'CODE'	
 
 
 Procedures, parameters, and locals:
@@ -1695,15 +1874,15 @@ Procedures, parameters, and locals:
 CloseFile  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 CloseHandle  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 Clrscr . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-ConvertStringToInteger . . . . .	P Near	 000002A0 _TEXT	Length= 00000064 Public STDCALL
+ConvertStringToInteger . . . . .	P Near	 000003A1 _TEXT	Length= 00000064 Public STDCALL
   offset_str_CrntTempLoc . . . .	DWord	 bp - 00000004
   len_str_CrntTemp . . . . . . .	DWord	 bp - 00000008
   numInt . . . . . . . . . . . .	DWord	 bp - 0000000C
   loopCount  . . . . . . . . . .	DWord	 bp - 00000010
-  L_strlen . . . . . . . . . . .	L Near	 000002B7 _TEXT	
-  L_done_strlen  . . . . . . . .	L Near	 000002C0 _TEXT	
-  _convert_loop  . . . . . . . .	L Near	 000002D2 _TEXT	
-  _end_convert_loop  . . . . . .	L Near	 000002F2 _TEXT	
+  L_strlen . . . . . . . . . . .	L Near	 000003B8 _TEXT	
+  L_done_strlen  . . . . . . . .	L Near	 000003C1 _TEXT	
+  _convert_loop  . . . . . . . .	L Near	 000003D3 _TEXT	
+  _end_convert_loop  . . . . . .	L Near	 000003F3 _TEXT	
 CreateFileA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 CreateOutputFile . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 Crlf . . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
@@ -1711,7 +1890,7 @@ Delay  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 DumpMem  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 DumpRegs . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ExitProcess  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-Extract_StrCrntTemp  . . . . . .	P Near	 00000376 _TEXT	Length= 0000009A Public STDCALL
+Extract_StrCrntTemp  . . . . . .	P Near	 00000477 _TEXT	Length= 0000009A Public STDCALL
   prev_DlmterPos . . . . . . . .	DWord	 bp - 00000004
   crnt_DlmterPos . . . . . . . .	DWord	 bp - 00000008
   file_TempReadingsLoc . . . . .	DWord	 bp - 0000000C
@@ -1736,43 +1915,43 @@ GetMaxXY . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 GetMseconds  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 GetNumberOfConsoleInputEvents  .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 GetProcessHeap . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-GetSign  . . . . . . . . . . . .	P Near	 00000304 _TEXT	Length= 00000072 Public STDCALL
-  defaultPositive  . . . . . . .	L Near	 0000032B _TEXT	
-  setNegative  . . . . . . . . .	L Near	 00000336 _TEXT	
-  setPositive  . . . . . . . . .	L Near	 00000341 _TEXT	
-  shiftString  . . . . . . . . .	L Near	 0000034C _TEXT	
-  shift_loop . . . . . . . . . .	L Near	 0000035A _TEXT	
-  printSign  . . . . . . . . . .	L Near	 0000036A _TEXT	
-  done . . . . . . . . . . . . .	L Near	 0000036A _TEXT	
+GetSign  . . . . . . . . . . . .	P Near	 00000405 _TEXT	Length= 00000072 Public STDCALL
+  defaultPositive  . . . . . . .	L Near	 0000042C _TEXT	
+  setNegative  . . . . . . . . .	L Near	 00000437 _TEXT	
+  setPositive  . . . . . . . . .	L Near	 00000442 _TEXT	
+  shiftString  . . . . . . . . .	L Near	 0000044D _TEXT	
+  shift_loop . . . . . . . . . .	L Near	 0000045B _TEXT	
+  printSign  . . . . . . . . . .	L Near	 0000046B _TEXT	
+  done . . . . . . . . . . . . .	L Near	 0000046B _TEXT	
 GetStdHandle . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 GetSystemTime  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 GetTextColor . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 GetTickCount . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-Get_MatrixSize . . . . . . . . .	P Near	 00000482 _TEXT	Length= 0000009F Public STDCALL
+Get_MatrixSize . . . . . . . . .	P Near	 00000583 _TEXT	Length= 0000009F Public STDCALL
   int_NumRows  . . . . . . . . .	DWord	 bp - 00000004
   int_NumCols  . . . . . . . . .	DWord	 bp - 00000008
   offset_File_TempReadings . . .	DWord	 bp - 0000000C
   rowHasData . . . . . . . . . .	Byte	 bp - 0000000D
-  _countCols . . . . . . . . . .	L Near	 000004A9 _TEXT	
-  _continueCols  . . . . . . . .	L Near	 000004C7 _TEXT	
-  _finishFirstRow  . . . . . . .	L Near	 000004CB _TEXT	
-  _skipFirstRow  . . . . . . . .	L Near	 000004D4 _TEXT	
-  _countRows . . . . . . . . . .	L Near	 000004D8 _TEXT	
-  _endOfRow  . . . . . . . . . .	L Near	 000004EB _TEXT	
-  _resetRow  . . . . . . . . . .	L Near	 000004F4 _TEXT	
-  _end_Get_MatrixSize  . . . . .	L Near	 000004FA _TEXT	
-  _addFinalRow . . . . . . . . .	L Near	 00000502 _TEXT	
-  _storeCounts . . . . . . . . .	L Near	 00000507 _TEXT	
-Get_NextDlmtrPos . . . . . . . .	P Near	 00000410 _TEXT	Length= 00000072 Public STDCALL
+  _countCols . . . . . . . . . .	L Near	 000005AA _TEXT	
+  _continueCols  . . . . . . . .	L Near	 000005C8 _TEXT	
+  _finishFirstRow  . . . . . . .	L Near	 000005CC _TEXT	
+  _skipFirstRow  . . . . . . . .	L Near	 000005D5 _TEXT	
+  _countRows . . . . . . . . . .	L Near	 000005D9 _TEXT	
+  _endOfRow  . . . . . . . . . .	L Near	 000005EC _TEXT	
+  _resetRow  . . . . . . . . . .	L Near	 000005F5 _TEXT	
+  _end_Get_MatrixSize  . . . . .	L Near	 000005FB _TEXT	
+  _addFinalRow . . . . . . . . .	L Near	 00000603 _TEXT	
+  _storeCounts . . . . . . . . .	L Near	 00000608 _TEXT	
+Get_NextDlmtrPos . . . . . . . .	P Near	 00000511 _TEXT	Length= 00000072 Public STDCALL
   crntDlmtrPos . . . . . . . . .	DWord	 bp - 00000004
   prevDlmterPos  . . . . . . . .	DWord	 bp - 00000008
   offset_File_TempReadingsLoc  .	DWord	 bp - 0000000C
-  _searchLoop2 . . . . . . . . .	L Near	 00000435 _TEXT	
-  _found_Dlmtr . . . . . . . . .	L Near	 0000043C _TEXT	
-  _adjustLoop  . . . . . . . . .	L Near	 00000453 _TEXT	
-  _checkLF . . . . . . . . . . .	L Near	 00000462 _TEXT	
-  _foundCRLF . . . . . . . . . .	L Near	 0000046C _TEXT	
-  _doneAdjust  . . . . . . . . .	L Near	 00000470 _TEXT	
+  _searchLoop2 . . . . . . . . .	L Near	 00000536 _TEXT	
+  _found_Dlmtr . . . . . . . . .	L Near	 0000053D _TEXT	
+  _adjustLoop  . . . . . . . . .	L Near	 00000554 _TEXT	
+  _checkLF . . . . . . . . . . .	L Near	 00000563 _TEXT	
+  _foundCRLF . . . . . . . . . .	L Near	 0000056D _TEXT	
+  _doneAdjust  . . . . . . . . .	L Near	 00000571 _TEXT	
 Gotoxy . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 HeapAlloc  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 HeapCreate . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
@@ -1784,13 +1963,13 @@ LocalFree  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 MessageBoxA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 MsgBoxAsk  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 MsgBox . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-Negate_CurntTemp . . . . . . . .	P Near	 0000027D _TEXT	Length= 00000023 Public STDCALL
+Negate_CurntTemp . . . . . . . .	P Near	 0000037E _TEXT	Length= 00000023 Public STDCALL
   originalValue  . . . . . . . .	DWord	 bp - 00000004
   negatedValue . . . . . . . . .	DWord	 bp - 00000008
 OpenInputFile  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ParseDecimal32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ParseInteger32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-ParseTempsFromString . . . . . .	P Near	 00000064 _TEXT	Length= 000001BD Public STDCALL
+ParseTempsFromString . . . . . .	P Near	 00000165 _TEXT	Length= 000001BD Public STDCALL
   str_CrntTemp . . . . . . . . .	Byte	 bp - 00000005
   int_Len_Str_CrntTemp . . . . .	DWord	 bp - 0000000C
   int_Sign . . . . . . . . . . .	DWord	 bp - 00000010
@@ -1802,12 +1981,12 @@ ParseTempsFromString . . . . . .	P Near	 00000064 _TEXT	Length= 000001BD Public 
   offset_File_TempReadings . . .	DWord	 bp - 00000028
   int_LenMatrix  . . . . . . . .	DWord	 bp - 0000002C
   int_WidthMatrix  . . . . . . .	DWord	 bp - 00000030
-  _Loop_Rows . . . . . . . . . .	L Near	 000000C4 _TEXT	
-  _Loop_Columns  . . . . . . . .	L Near	 000000CC _TEXT	
-  _Save_ToTempMatrix . . . . . .	L Near	 0000017C _TEXT	
-  _End_LoopColumns . . . . . . .	L Near	 000001C4 _TEXT	
-  _End_LoopRows  . . . . . . . .	L Near	 000001FC _TEXT	
-  _PrintLoop . . . . . . . . . .	L Near	 00000204 _TEXT	
+  _Loop_Rows . . . . . . . . . .	L Near	 000001C5 _TEXT	
+  _Loop_Columns  . . . . . . . .	L Near	 000001CD _TEXT	
+  _Save_ToTempMatrix . . . . . .	L Near	 0000027D _TEXT	
+  _End_LoopColumns . . . . . . .	L Near	 000002C5 _TEXT	
+  _End_LoopRows  . . . . . . . .	L Near	 000002FD _TEXT	
+  _PrintLoop . . . . . . . . . .	L Near	 00000305 _TEXT	
 PeekConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 Random32 . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 RandomRange  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
@@ -1824,7 +2003,7 @@ ReadInt  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 ReadKeyFlush . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ReadKey  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 ReadString . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-Save_CrntTemp_ToMatrix . . . . .	P Near	 00000221 _TEXT	Length= 0000005C Public STDCALL
+Save_CrntTemp_ToMatrix . . . . .	P Near	 00000322 _TEXT	Length= 0000005C Public STDCALL
   crntTemp . . . . . . . . . . .	DWord	 bp - 00000004
   rowIndex . . . . . . . . . . .	DWord	 bp - 00000008
   colIndex . . . . . . . . . . .	DWord	 bp - 0000000C
@@ -1868,9 +2047,21 @@ WriteInt . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External
 WriteStackFrameName  . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteTempsReverse  . . . . . . .	P Near	 0000006E _TEXT	Length= 000000F7 Public STDCALL
+  crntTemp . . . . . . . . . . .	DWord	 bp - 00000004
+  rowIndex . . . . . . . . . . .	DWord	 bp - 00000008
+  colIndex . . . . . . . . . . .	DWord	 bp - 0000000C
+  offsetTempMatrixLoc  . . . . .	DWord	 bp - 00000010
+  lastElementPtr . . . . . . . .	DWord	 bp - 00000014
+  ROW_LOOP . . . . . . . . . . .	L Near	 0000008D _TEXT	
+  ROW_COUNT_LOOP . . . . . . . .	L Near	 000000C1 _TEXT	
+  END_ROW_COUNT_LOOP . . . . . .	L Near	 000000DA _TEXT	
+  PRINT_REVERSE_LOOP . . . . . .	L Near	 00000118 _TEXT	
+  END_PRINT_REVERSE_LOOP . . . .	L Near	 00000141 _TEXT	
+  END_WRITE_TEMPS_REVERSE  . . .	L Near	 0000015B _TEXT	
 WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
 WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
-main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 00000064 Public STDCALL
+main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 0000006E Public STDCALL
 printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
 wsprintfA  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
