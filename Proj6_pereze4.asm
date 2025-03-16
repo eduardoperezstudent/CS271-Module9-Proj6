@@ -214,7 +214,6 @@ main ENDP
 ; In this code, LODSD is used to load the next element while counting columns.
 ;---------------------------------------------------------------
 
-
 WriteTempsReverse PROC
 
     ; local variables:
@@ -250,8 +249,9 @@ WriteTempsReverse PROC
     MOV     row_Index, EAX
 
     ; Loop thru each row in the matrix
-    _loop_Rows:
+    _LoopRows:
         ; Check if end of file
+        ; Debug Printout - check first element of row
         CALL    CrLf
         MOV     EDX, OFFSET str_MsgFirstElementCrntRow
         CALL    WriteString
@@ -261,7 +261,6 @@ WriteTempsReverse PROC
 
         CMP     EAX, -1000
         JE      _End_LoopRows
-
 
         ; Determine current Row length, excluding sentinel value
         ; Load the parameter (array base address)
@@ -302,21 +301,31 @@ WriteTempsReverse PROC
         ; Initialize Inner row
         MOV     ECX, len_Row
         ; Iterates thru all elements in the current row, in reverse order
-        _PrintLoop:
+        _LoopColumns:
             STD                                ; Set DF for reverse iteration. 
             CMP     ECX, 0                     ; Check if all elements are printed
-            JZ      _End_PrintLoop             ; Exit if no elements left
+            JZ      _End_LoopColumns             ; Exit if no elements left
 
             LODSD                              ; Load value from [ESI] into EAX, decrement ESI
             CALL    WriteInt 
             MOV     EAX, DELIMITER 
             CALL    WriteChar 
 
-            LOOP    _PrintLoop
+            LOOP    _LoopColumns
 
-        _End_PrintLoop:
-            CALL    Crlf                       ; Newline after row
-            CLD                                ; Clear DF
+        _End_LoopColumns:
+
+    
+    ;Setup next row
+    ; Obtain next row address
+    MOV     EAX, len_Row
+    SHL     EAX, 2
+    ADD     EAX, offset_CrntRow
+    ADD     EAX, 4                     ; Add to compensate the sentinel value
+    MOV     offset_CrntRow, EAX
+    CALL    Crlf                       ; Newline after row
+    CLD                                ; Clear DF
+    JMP     _LoopRows
 
     _End_LoopRows:
 
@@ -328,10 +337,6 @@ WriteTempsReverse PROC
     POP     EAX
     RET     4
 WriteTempsReverse ENDP
-
-
-
-
 
 
 ; ==========================================================================================================================

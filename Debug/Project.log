@@ -1,1 +1,6 @@
-﻿  Project.vcxproj -> C:\Users\eduar\source\repos\CS271\Project6\Debug\Project.exe
+﻿  Assembling Proj6_pereze4.asm...
+Proj6_pereze4.asm(339): warning A6004: procedure argument or local not referenced : crnt_Temp
+Proj6_pereze4.asm(339): warning A6004: procedure argument or local not referenced : col_Index
+Proj6_pereze4.asm(611): warning A6004: procedure argument or local not referenced : int_Len_Str_CrntTemp
+Proj6_pereze4.asm(961): warning A6004: procedure argument or local not referenced : loopCount
+  Project.vcxproj -> C:\Users\eduar\source\repos\CS271\Project6\Debug\Project.exe
