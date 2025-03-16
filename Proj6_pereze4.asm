@@ -112,6 +112,7 @@ str_MsgSignRemoved              BYTE    "The extracted current Temperature readi
 str_MsgConvertedInt             BYTE    "The converted integer value: ", 0
 str_MsgAfterSignCheck           BYTE    "The integer value after the sign check: ", 0
 str_MsgAddressOfMatrix          BYTE    "The address of the matrix in the calling procedure: ",0
+str_MsgCrntRowLen               BYTE    "The length of the current row: ",0
 
 
 
@@ -215,13 +216,14 @@ main ENDP
 
 WriteTempsReverse PROC
 
-    ; Allocate local variables on the stack:
+    ; local variables:
     LOCAL   crnt_Temp:DWORD              ; Current temperature value from matrix element
     LOCAL   row_Index:DWORD              ; holds the current row
     LOCAL   col_Index:DWORD              ; Number of valid elements in the current row
     LOCAL   offset_TempMatrix:DWORD        ; Holds the pointer to the current row in the matrix
     LOCAL   offset_CrntRow:DWORD        ; Holds the pointer to the current row in the matrix
-    LOCAL   len_Row:DWORD        ; Pointer to last valid element in the row
+    LOCAL   len_Row:DWORD                ; Pointer to first element in the row
+
 
     PUSH    EAX
     PUSH    EBX
@@ -241,39 +243,72 @@ WriteTempsReverse PROC
 
 
     ;-----------------------------------------
-    ; Determine Row length, excluding sentinel value
-
-    ; Load the parameter (array base address)
-    MOV     EDI, offset_CrntRow     ; Get offset of current Row
-
-    ; Initialize counter
-    XOR     ECX, ECX          ; Set count to 0
-
-    ; Detect the sentinel value. SCASD compares [EDI] with EAX and increments EDI by 4
-    MOV     EAX, -999         ; Sentinel value
-    _ScanLoop:
-        SCASD                     ; Compare [EDI] with EAX, increment EDI by 4
-        JZ      _StoreRowLen        ; If match is found, exit loop
-        INC     ECX               ; Increment counter
-        JMP     _ScanLoop          ; Continue scanning
-
-    _StoreRowLen:
-        MOV     len_Row, ECX      ; Store the final count in the local variable
-
-        MOV     EAX, len_Row
-        CALL    WriteDec
-
-
-
-
-
-    ;-----------------------------------------
     ; Outer Loop: Process each row until reach end of matrix (-1000)
     ; Initialize outer Loop:
     MOV     EAX, 0
     MOV     row_Index, EAX
+
+    ; Loop thru each row in the matrix
     _loop_Row3:
-        ;Inner Loop: Process each row until reach end of row (-999)
+        ; Determine current Row length, excluding sentinel value
+        ; Load the parameter (array base address)
+        MOV     EDI, offset_CrntRow     ; Get offset of current Row
+
+        ; Initialize counter
+        XOR     ECX, ECX          ; Set count to 0
+
+        ; Detect the sentinel value. SCASD compares [EDI] with EAX and increments EDI by 4
+        MOV     EAX, -999         ; Sentinel value
+        _ScanLoop:
+            SCASD                     ; Compare [EDI] with EAX, increment EDI by 4
+            JZ      _StoreRowLen        ; If match is found, exit loop
+            INC     ECX               ; Increment counter
+            JMP     _ScanLoop          ; Continue scanning
+
+        _StoreRowLen:
+            MOV     len_Row, ECX      ; Store the final count in the local variable
+            MOV     EAX, len_Row
+
+            ; Debuggin printout
+            CALL    CrLf
+            MOV     EDX, OFFSET str_MsgCrntRowLen
+            CALL    WriteString
+            CALL    WriteDec
+            CALL    CrLf
+
+        ;-----------------------------------------
+        ; Print row
+        ; Compute last element address
+        MOV     EAX, len_Row              ; Get len_Row
+        SHL     EAX, 2                    ; Multiply by 4 (DWORD size)
+        ADD     EAX, offset_CrntRow        ; Compute last element address
+        SUB     EAX, 4                     ; Adjust to last valid element
+        MOV     ESI, EAX                    ; Store in ESI (used for LODSD)
+
+
+
+
+        ; Load counter from local variable
+        MOV     ECX, len_Row
+
+        PrintLoop:
+            STD
+            CMP     ECX, 0                     ; Check if all elements are printed
+            JZ      DonePrinting               ; Exit if no elements left
+
+            LODSD                              ; Load value from [ESI] into EAX, decrement ESI
+            CALL    WriteInt                   ; Print integer
+            MOV     EAX, DELIMITER             ; Load delimiter
+            CALL    WriteChar                  ; Print delimiter
+
+            LOOP    PrintLoop                  ; Decrement ECX, continue loop
+
+        DonePrinting:
+            CALL    Crlf                       ; Newline after row
+            CLD                                ; Clear DF (restore normal direction)
+
+
+
 
     END_WRITE_TEMPS_REVERSE:
         POP     EDI
