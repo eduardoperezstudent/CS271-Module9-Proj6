@@ -55,14 +55,16 @@ ENDM
 ; Local Variables:
 ; Registers used:
 
-mDisplayString MACRO str_Message
+mDisplayString MACRO offset_Message
     PUSH    EDX
 
-    MOV     EDX, OFFSET str_Message
+    MOV     EDX, offset_Message
     CALL    WriteString
 
     POP     EDX
 ENDM
+
+
 
 
 ;=================================================================================
@@ -115,6 +117,7 @@ str_MsgAfterSignCheck           BYTE    "The integer value after the sign check:
 str_MsgAddressOfMatrix          BYTE    "The address of the matrix in the calling procedure: ",0
 str_MsgCrntRowLen               BYTE    "The length of the current row of the matrix: ",0
 str_MsgFirstElementCrntRow      BYTE    "The first element of the current row of the matrix: ",0
+str_MsgDisplayReversedRow       BYTE    "Corrected Input Line ", 0
 
 
 
@@ -151,6 +154,8 @@ str_MsgSavedInteger         BYTE "SAVED INTEGER: ",0
 .code
 main PROC
 
+
+
     ;=================================
     ; Get File name
     mGetString str_MsgPromptFileName, str_NameOfFile, int_BufferSizeFileName, int_LenNameOfFile
@@ -182,12 +187,11 @@ main PROC
     CALL    CloseFile
 
     ;=================================
+    ;Print Temp Matrix
+
+    PUSH    OFFSET str_MsgDisplayReversedRow
     PUSH    OFFSET  arr_TempMatrix
     CALL    WriteTempsReverse
-
-
-
-
 
 
 	Invoke ExitProcess,0	; exit to operating system
@@ -224,6 +228,8 @@ WriteTempsReverse PROC
     LOCAL   offset_TempMatrix:DWORD        ; Holds the pointer to the current row in the matrix
     LOCAL   offset_CrntRow:DWORD        ; Holds the pointer to the current row in the matrix
     LOCAL   len_Row:DWORD                ; Pointer to first element in the row
+    LOCAL   offset_StrMsg:DWORD            ; OFFSET of a string message
+
 
 
     PUSH    EAX
@@ -236,11 +242,19 @@ WriteTempsReverse PROC
     ;-----------------------------------------
     ; Parameters:
     ; [EBP+8]           offset_Arr_TempMatrix
+    ; [EBP + 12]        str_MsgDisplayReversedRow
+
+
 
     ; Load parameter into a local
     MOV     EAX, [EBP+8]                ; Load the procedure parameter (pointer to matrix)
     MOV     offset_TempMatrix, EAX      ; Store it into our local variable
     MOV     offset_CrntRow, EAX         ; Initialize location of current Row to be same as the matrix
+    MOV     EAX, [EBP + 12]
+    MOV     offset_StrMsg, EAX
+
+
+
 
 
     ;-----------------------------------------
@@ -251,6 +265,7 @@ WriteTempsReverse PROC
 
     ; Loop thru each row in the matrix
     _LoopRows:
+
         ; Check if end of file
         ; Debug Printout - check first element of row
         ;CALL    CrLf
@@ -292,6 +307,10 @@ WriteTempsReverse PROC
         ;-----------------------------------------
         ; Print row
         ; Compute last element address
+
+
+
+
         MOV     EAX, len_Row              ; Get len_Row
         SHL     EAX, 2                    ; Multiply by 4 (DWORD size)
         ADD     EAX, offset_CrntRow        ; Compute last element address
@@ -299,10 +318,16 @@ WriteTempsReverse PROC
         MOV     ESI, EAX                    ; Store in ESI (used for LODSD)
 
 
-        ; Initialize Inner row
+        ; Initialize Inner loop
         MOV     ECX, len_Row
         CALL    CrLf
         ; Iterates thru all elements in the current row, in reverse order
+        mDisplayString offset_StrMsg
+        MOV     EAX, row_Index
+        CALL    WriteDec
+        mDisplayChar ':'
+        mDisplayChar ' '
+
 
         _LoopColumns:
             STD                                ; Set DF for reverse iteration. 
@@ -327,6 +352,9 @@ WriteTempsReverse PROC
     ADD     EAX, offset_CrntRow
     ADD     EAX, 4                     ; Add to compensate the sentinel value
     MOV     offset_CrntRow, EAX
+    MOV     EAX, row_Index
+    INC     EAX
+    MOV     row_Index, EAX
 
     ;Debuging prinouts
     ;CALL    Crlf                       ; Newline after row
@@ -348,7 +376,7 @@ WriteTempsReverse PROC
     POP     ECX
     POP     EBX
     POP     EAX
-    RET     4
+    RET     8
 WriteTempsReverse ENDP
 
 
