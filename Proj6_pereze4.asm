@@ -14,7 +14,8 @@ TITLE Temp List Reverser     (Proj6_pereze4.asm)
 ; Implementation note 2:    Can accept Temp readings with prefix '+' or '-', and/or a leading zero
 ; Implementation note 3:    Program dynamically determines the number of columns of the character delimited file. It doesnt utilize TEMPS_PER_DAY
 ; Limitation:               Maximum of about 150 Temperature readings and 50 rows
-; Limitation:               Can not handle an empty line  
+; Limitation:               Can not handle an empty line
+; Limitation:               Can not handle rows of different length
 
 INCLUDE Irvine32.inc
 
@@ -252,12 +253,12 @@ WriteTempsReverse PROC
     _LoopRows:
         ; Check if end of file
         ; Debug Printout - check first element of row
-        CALL    CrLf
-        MOV     EDX, OFFSET str_MsgFirstElementCrntRow
-        CALL    WriteString
+        ;CALL    CrLf
+        ;MOV     EDX, OFFSET str_MsgFirstElementCrntRow
+        ;CALL    WriteString
         MOV     EBX, [offset_CrntRow]
         MOV     EAX, [EBX]
-        CALL    WriteInt
+        ;CALL    WriteInt
 
         CMP     EAX, -1000
         JE      _End_LoopRows
@@ -282,11 +283,11 @@ WriteTempsReverse PROC
             MOV     EAX, len_Row
 
             ; Debuggin printout
-            CALL    CrLf
-            MOV     EDX, OFFSET str_MsgCrntRowLen
-            CALL    WriteString
-            CALL    WriteDec
-            CALL    CrLf
+            ;CALL    CrLf
+            ;MOV     EDX, OFFSET str_MsgCrntRowLen
+            ;CALL    WriteString
+            ;CALL    WriteDec
+            ;CALL    CrLf
 
         ;-----------------------------------------
         ; Print row
@@ -300,14 +301,17 @@ WriteTempsReverse PROC
 
         ; Initialize Inner row
         MOV     ECX, len_Row
+        CALL    CrLf
         ; Iterates thru all elements in the current row, in reverse order
+
         _LoopColumns:
             STD                                ; Set DF for reverse iteration. 
             CMP     ECX, 0                     ; Check if all elements are printed
             JZ      _End_LoopColumns             ; Exit if no elements left
 
             LODSD                              ; Load value from [ESI] into EAX, decrement ESI
-            CALL    WriteInt 
+            CALL    WriteInt
+            
             MOV     EAX, DELIMITER 
             CALL    WriteChar 
 
@@ -323,11 +327,20 @@ WriteTempsReverse PROC
     ADD     EAX, offset_CrntRow
     ADD     EAX, 4                     ; Add to compensate the sentinel value
     MOV     offset_CrntRow, EAX
-    CALL    Crlf                       ; Newline after row
+
+    ;Debuging prinouts
+    ;CALL    Crlf                       ; Newline after row
+    ;MOV     EDX, OFFSET str_MsgFirstElementCrntRow
+    ;CALL    WriteString
+    ;MOV     EBX, [offset_CrntRow]
+    ;MOV     EAX, [EBX]
+    ;CALL    WriteInt
+    
     CLD                                ; Clear DF
     JMP     _LoopRows
 
     _End_LoopRows:
+    CALL    CrLf
 
     POP     EDI
     POP     ESI
@@ -370,9 +383,6 @@ ParseTempsFromString PROC
 
 
 
-
-
-
     ;==================================================================
     ; Get File Size
     LEA     EAX, int_WidthMatrix
@@ -382,17 +392,17 @@ ParseTempsFromString PROC
     PUSH    offset_File_TempReadings
     CALL    Get_MatrixSize
 
-    CALL    CrLf
-    MOV     EDX, OFFSET str_MsgNumberofRows
-    CALL    WriteString
-    MOV     EAX, int_LenMatrix
-    CALL    WriteDec
+    ;CALL    CrLf
+    ;MOV     EDX, OFFSET str_MsgNumberofRows
+    ;CALL    WriteString
+    ;MOV     EAX, int_LenMatrix
+    ;CALL    WriteDec
 
-    CALL    CrLf
-    MOV     EDX, OFFSET str_MsgNumberofColumns
-    CALL    WriteString
-    MOV     EAX, int_WidthMatrix
-    CALL    WriteDec
+    ;CALL    CrLf
+    ;MOV     EDX, OFFSET str_MsgNumberofColumns
+    ;CALL    WriteString
+    ;MOV     EAX, int_WidthMatrix
+    ;CALL    WriteDec
 
     ;==================================================================
     ; Initialize outer loop (rows)
@@ -438,11 +448,11 @@ ParseTempsFromString PROC
            MOV      EAX, int_CrntDlmterPos
            PUSH     EAX
            CALL     Extract_StrCrntTemp
-           MOV      EDX, OFFSET str_MsgCurrentTempIteration
-           CALL     CrLf
-           CALL     WriteString
-           LEA      EDX, str_CrntTemp
-           CALL     WriteString
+           ;MOV      EDX, OFFSET str_MsgCurrentTempIteration
+           ;CALL     CrLf
+           ;CALL     WriteString
+           ;LEA      EDX, str_CrntTemp
+           ;CALL     WriteString
 
 
            ;==================================================================
@@ -453,17 +463,17 @@ ParseTempsFromString PROC
             PUSH     EAX
             CALL     GetSign
             ; Debug Print
-            CALL    CrLf
-            MOV     EDX, OFFSET str_MsgSign
-            CALL    WriteString
-            MOV     EAX, int_Sign
-            CALL    WriteDec
-            CALL    CrLf     
-            MOV     EDX, OFFSET str_MsgSignRemoved
-            CALL    WriteString
-            LEA     EDX, str_CrntTemp
-            CALL    WriteString
-            CALL    CrLf
+            ;CALL    CrLf
+            ;MOV     EDX, OFFSET str_MsgSign
+            ;CALL    WriteString
+            ;MOV     EAX, int_Sign
+            ;CALL    WriteDec
+            ;CALL    CrLf     
+            ;MOV     EDX, OFFSET str_MsgSignRemoved
+            ;CALL    WriteString
+            ;LEA     EDX, str_CrntTemp
+            ;CALL    WriteString
+            ;CALL    CrLf
 
 
     
@@ -476,11 +486,11 @@ ParseTempsFromString PROC
             PUSH    EAX
             CALL    ConvertStringToInteger
             ; Debugging printouts
-            CALL    CrLf
-            MOV     EDX, OFFSET str_MsgConvertedInt
-            CALL    WriteString
-            MOV     EAX, int_CrntTemp
-            CALL    WriteInt
+            ;CALL    CrLf
+            ;MOV     EDX, OFFSET str_MsgConvertedInt
+            ;CALL    WriteString
+            ;MOV     EAX, int_CrntTemp
+            ;CALL    WriteInt
 
 
            ;==================================================================
@@ -497,12 +507,12 @@ ParseTempsFromString PROC
 
             _Save_ToTempMatrix:
                 ; Debugging printouts
-                CALL    CrLf
-                MOV     EDX, OFFSET str_MsgAfterSignCheck
-                CALL    WriteString
-                MOV     EAX, int_CrntTemp
-                CALL    WriteInt
-                CALL    CrLf
+                ;CALL    CrLf
+                ;MOV     EDX, OFFSET str_MsgAfterSignCheck
+                ;CALL    WriteString
+                ;MOV     EAX, int_CrntTemp
+                ;CALL    WriteInt
+                ;CALL    CrLf
 
    
                ;==================================================================
@@ -587,17 +597,17 @@ ParseTempsFromString PROC
     ; ============================================
     ; Print All Elements of arr_TempMatrix
 
-    MOV     ESI, [EBP + 12]                 ; Move to ESI, array OFFSET
-    MOV     ECX, 250 ; Set loop counter (total elements)
+    ;MOV     ESI, [EBP + 12]                 ; Move to ESI, array OFFSET
+    ;MOV     ECX, 250 ; Set loop counter (total elements)
 
-    _PrintLoop:
-        MOV     EAX, [ESI]                  ; Load current array element
-        CALL    WriteInt                      ; Print number
-        MOV     AL, ' '
-        CALL    WriteChar                      ; Print space for separation
+    ;_PrintLoop:
+        ;MOV     EAX, [ESI]                  ; Load current array element
+        ;CALL    WriteInt                      ; Print number
+        ;MOV     AL, ' '
+        ;CALL    WriteChar                      ; Print space for separation
 
-        ADD     ESI, 4                          ; Move to next DWORD (4 bytes)
-        LOOP    _PrintLoop                     ; Repeat until ECX = 0
+        ;ADD     ESI, 4                          ; Move to next DWORD (4 bytes)
+        ;LOOP    _PrintLoop                     ; Repeat until ECX = 0
 
     ;   Cleanup then Finish Proc
     POP	    EDI
@@ -609,6 +619,8 @@ ParseTempsFromString PROC
     RET     8
 
 ParseTempsFromString ENDP
+
+
 
 ; ==========================================================================================================================
 ; Saves current Temp reading to array
@@ -743,8 +755,6 @@ Save_CrntTemp_ToMatrix PROC
     ;MOV     EAX, crntTemp
     ;CALL    WriteInt
     ;CALL    CrLf
-
-
 
 
 
@@ -1153,25 +1163,25 @@ Extract_StrCrntTemp PROC
 
 
     ; Debugging Messages
-    MOV     EDX, OFFSET str_MsgLoadedFile
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EDX, file_TempReadingsLoc
-    CALL    CrLf
-    CALL    WriteString
+    ;MOV     EDX, OFFSET str_MsgLoadedFile
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EDX, file_TempReadingsLoc
+    ;CALL    CrLf
+    ;CALL    WriteString
 
 
-    MOV     EDX, OFFSET str_MsgPrevDlmtrPos
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, prev_DlmterPos
-    CALL    WriteInt
+    ;MOV     EDX, OFFSET str_MsgPrevDlmtrPos
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EAX, prev_DlmterPos
+    ;CALL    WriteInt
 
-    MOV     EDX, OFFSET str_MsgCrntDlmtrPos
-    CALL    CrLf
-    CALL    WriteString
-    MOV     EAX, crnt_DlmterPos
-    CALL    WriteInt
+    ;MOV     EDX, OFFSET str_MsgCrntDlmtrPos
+    ;CALL    CrLf
+    ;CALL    WriteString
+    ;MOV     EAX, crnt_DlmterPos
+    ;CALL    WriteInt
 
 
     ;-------------------------------------------------------------------
