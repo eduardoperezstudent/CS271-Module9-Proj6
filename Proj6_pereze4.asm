@@ -112,7 +112,8 @@ str_MsgSignRemoved              BYTE    "The extracted current Temperature readi
 str_MsgConvertedInt             BYTE    "The converted integer value: ", 0
 str_MsgAfterSignCheck           BYTE    "The integer value after the sign check: ", 0
 str_MsgAddressOfMatrix          BYTE    "The address of the matrix in the calling procedure: ",0
-str_MsgCrntRowLen               BYTE    "The length of the current row: ",0
+str_MsgCrntRowLen               BYTE    "The length of the current row of the matrix: ",0
+str_MsgFirstElementCrntRow      BYTE    "The first element of the current row of the matrix: ",0
 
 
 
@@ -249,7 +250,19 @@ WriteTempsReverse PROC
     MOV     row_Index, EAX
 
     ; Loop thru each row in the matrix
-    _loop_Row3:
+    _loop_Rows:
+        ; Check if end of file
+        CALL    CrLf
+        MOV     EDX, OFFSET str_MsgFirstElementCrntRow
+        CALL    WriteString
+        MOV     EBX, [offset_CrntRow]
+        MOV     EAX, [EBX]
+        CALL    WriteInt
+
+        CMP     EAX, -1000
+        JE      _End_LoopRows
+
+
         ; Determine current Row length, excluding sentinel value
         ; Load the parameter (array base address)
         MOV     EDI, offset_CrntRow     ; Get offset of current Row
@@ -286,38 +299,34 @@ WriteTempsReverse PROC
         MOV     ESI, EAX                    ; Store in ESI (used for LODSD)
 
 
-
-
-        ; Load counter from local variable
+        ; Initialize Inner row
         MOV     ECX, len_Row
-
-        PrintLoop:
-            STD
+        ; Iterates thru all elements in the current row, in reverse order
+        _PrintLoop:
+            STD                                ; Set DF for reverse iteration. 
             CMP     ECX, 0                     ; Check if all elements are printed
-            JZ      DonePrinting               ; Exit if no elements left
+            JZ      _End_PrintLoop             ; Exit if no elements left
 
             LODSD                              ; Load value from [ESI] into EAX, decrement ESI
-            CALL    WriteInt                   ; Print integer
-            MOV     EAX, DELIMITER             ; Load delimiter
-            CALL    WriteChar                  ; Print delimiter
+            CALL    WriteInt 
+            MOV     EAX, DELIMITER 
+            CALL    WriteChar 
 
-            LOOP    PrintLoop                  ; Decrement ECX, continue loop
+            LOOP    _PrintLoop
 
-        DonePrinting:
+        _End_PrintLoop:
             CALL    Crlf                       ; Newline after row
-            CLD                                ; Clear DF (restore normal direction)
+            CLD                                ; Clear DF
 
+    _End_LoopRows:
 
-
-
-    END_WRITE_TEMPS_REVERSE:
-        POP     EDI
-        POP     ESI
-        POP     EDX
-        POP     ECX
-        POP     EBX
-        POP     EAX
-        RET     4
+    POP     EDI
+    POP     ESI
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    RET     4
 WriteTempsReverse ENDP
 
 
