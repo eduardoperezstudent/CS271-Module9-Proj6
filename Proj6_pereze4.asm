@@ -66,7 +66,6 @@ ENDM
 
 
 
-
 ;=================================================================================
 ; Description:
 ; Parameters:
@@ -117,8 +116,7 @@ str_MsgAfterSignCheck           BYTE    "The integer value after the sign check:
 str_MsgAddressOfMatrix          BYTE    "The address of the matrix in the calling procedure: ",0
 str_MsgCrntRowLen               BYTE    "The length of the current row of the matrix: ",0
 str_MsgFirstElementCrntRow      BYTE    "The first element of the current row of the matrix: ",0
-str_MsgDisplayReversedRow       BYTE    "Corrected Input Line ", 0
-
+str_MsgDisplayReversedRow       BYTE    10, 13, "The Corrected Temperature Readings:", 10, 13, 0
 
 
 arr_TempMatrix                  DWORD   400 DUP(-1000)
@@ -150,7 +148,6 @@ str_MsgSavedInteger         BYTE "SAVED INTEGER: ",0
 
 
 
-
 .code
 main PROC
 
@@ -174,7 +171,6 @@ main PROC
 
 
 
-
     ;=================================
     PUSH    OFFSET  arr_TempMatrix
     PUSH    OFFSET  file_TempReadings
@@ -189,13 +185,92 @@ main PROC
     ;=================================
     ;Print Temp Matrix
 
-    PUSH    OFFSET str_MsgDisplayReversedRow
+    mDisplayString OFFSET str_MsgDisplayReversedRow
+
     PUSH    OFFSET  arr_TempMatrix
     CALL    WriteTempsReverse
 
 
 	Invoke ExitProcess,0	; exit to operating system
 main ENDP
+
+; ==========================================================================================================================
+; Takes in an integer, then prints in screen
+; receives: Address of the Temperature array
+; returns:
+; preconditions: passed address references of array
+; postconditions: values saved in array
+; registers changed: none
+; ==========================================================================================================================
+WriteVal PROC
+    LOCAL buffer[5]:BYTE    ; Buffer for ASCII number (3 digits + sign + NULL)
+    LOCAL index:DWORD       ; Buffer index
+    LOCAL isNegative:BYTE   ; Flag for negative number
+    LOCAL digitCount:DWORD  ; Counter for max 3 digits
+
+    ; Set up stack frame
+    PUSH    EBP
+    MOV     EBP, ESP
+
+    ; Preserve registers
+    PUSH    EAX
+    PUSH    EBX
+    PUSH    ECX
+    PUSH    EDX
+
+    ; Load parameter (correct way)
+    MOV     EAX, [EBP+8]    ; Retrieve parameter using EBP+8
+
+    ; Initialize flags and index
+    MOV     index, 3
+    MOV     BYTE PTR isNegative, 0
+    MOV     digitCount, 0
+
+    ; Check if negative
+    CMP     EAX, 0
+    JGE     ConvertNumber
+    MOV     BYTE PTR isNegative, 1
+    NEG     EAX
+
+ConvertNumber:
+    ; Convert number to ASCII (store last 3 digits)
+    MOV     ECX, 10
+
+DigitLoop:
+    CMP     digitCount, 3
+    JGE     PrintNumber
+
+    XOR     EDX, EDX
+    DIV     ECX
+    ADD     DL, '0'
+    MOV     buffer[index], DL
+    DEC     index
+    INC     digitCount
+    TEST    EAX, EAX
+    JNZ     DigitLoop
+
+    ; NULL-terminate the string
+    MOV     buffer[4], 0
+
+PrintNumber:
+    CMP     BYTE PTR isNegative, 1
+    JNE     PrintDigits
+    mDisplayChar '-'   ; Print negative sign
+
+PrintDigits:
+    LEA     EDX, buffer[index+1]
+    CALL    WriteString   ; Display string
+
+    ; Restore registers and clean up stack frame
+    POP     EDX
+    POP     ECX
+    POP     EBX
+    POP     EAX
+    POP     EBP
+    RET     4   ; Remove 4 bytes (1 parameter)
+
+WriteVal ENDP
+
 
 
 
@@ -322,11 +397,6 @@ WriteTempsReverse PROC
         MOV     ECX, len_Row
         CALL    CrLf
         ; Iterates thru all elements in the current row, in reverse order
-        mDisplayString offset_StrMsg
-        MOV     EAX, row_Index
-        CALL    WriteDec
-        mDisplayChar ':'
-        mDisplayChar ' '
 
 
         _LoopColumns:
@@ -376,7 +446,7 @@ WriteTempsReverse PROC
     POP     ECX
     POP     EBX
     POP     EAX
-    RET     8
+    RET     4
 WriteTempsReverse ENDP
 
 
